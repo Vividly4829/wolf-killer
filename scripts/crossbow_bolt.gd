@@ -145,6 +145,8 @@ func detonate() -> void:
 		if animal.is_in_group("campaign_threats"): animal.damage(amount,true)
 		else: animal.damage(amount)
 		var report := {"entry":Vector3.ZERO,"end":Vector3.UP*.4,"organs":[],"zone":"BLAST","species":animal.get("species") if animal.get("species")!=null else "wolf","damage":before-animal.health,"calculated_damage":amount,"base_damage":spec.damage,"range_factor":1-d/radius,"multiplier":1.0,"distance":d,"weapon":spec.name}
+		report.target_uid=animal.get_instance_id()
+		report.target_transform=animal.global_transform
 		if shooter_peer==1:
 			game.shot_review.record(report,review_serial)
 		else:

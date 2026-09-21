@@ -1,7 +1,7 @@
 # Compact HUD, misses and round earnings
 
 - Gameplay widgets shrink around their screen-edge anchors; menus retain their normal layout. X restores the original HUD size for eight seconds and continues cycling shot history. Each split-screen player has an independent detail view.
-- Automatic miss reviews use 38% opacity, including the replay, while preserving range and trajectory. Explicit review restores full opacity.
+- Hit and miss reviews both use full opacity. Expanded X-rays now use 78% of the original single-player size (55% in split screen) and leave the screen center clear.
 - Sprint speed is 6.075 m/s; stamina capacity is 337.5. Both are 75% of the previous values. Sprint firing remains disabled.
 - Gross round rewards are tracked by the host and included in hunter snapshots for every connected player, with stable P1/P2/P3 labels. Spending does not subtract earnings. New runs and next-round cabin wakes reset the ledger.
 

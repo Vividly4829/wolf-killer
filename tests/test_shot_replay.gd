@@ -14,6 +14,7 @@ func run() -> void:
 	root.add_child(game); game.start_free_play(); game.set_process(false); game.player.set_physics_process(false); game.campaign.set_process(false)
 	root.mode=Window.MODE_WINDOWED; root.size=Vector2i(1280,720); AudioServer.set_bus_mute(0,true)
 	for actor in game.wolves+game.nodes_in_group("wildlife"): actor.set_physics_process(false)
+	game.sounds.silent=false # Exercise real impact voices; the master bus remains muted.
 	var review=game.shot_review; review.set_process(false)
 	var replay=review.replay
 	var target=game.wolves[0]; target.position=Vector3(0,80,0); target.rotation.y=0
@@ -23,6 +24,12 @@ func run() -> void:
 	review.begin_shot(); game.fire_ballistic(Vector3(-12,80.57,.15),Vector3.RIGHT,weapon,review.serial,1,excluded); review._process(0)
 	check(not review.reports.is_empty() and review.reports[0].has("target_transform"),"real firearm hit stores target pose for isolated replay")
 	check(replay.ready_to_play and replay.markers.size()==1,"recorded shot builds its 3D replay")
+	check(game.sounds.flesh_index==1,"confirmed animal hit plays one flesh impact for the shooter")
+	check(review.damage_text(review.reports)=="%.1f DAMAGE"%float(review.reports[0].damage),"damage headline uses actual health lost")
+	check(replay.content.get_children().any(func(n):return n is Label3D and n.text.contains("DAMAGE") and n.modulate==Color("ff4545")),"struck animal has a red damage label in the X-ray replay")
+	game.hud_detail_left=8; review._process(0); game.hud._process(0)
+	await capture("hit-detail")
+	game.hud_detail_left=0; review._process(0)
 	var path: Dictionary=review.trajectories[0]
 	check(path.times.size()==path.points.size() and path.duration>0,"combat records sample timing with trajectory")
 	check(is_equal_approx(review.remaining,4),"review stays visible for four seconds")
@@ -40,7 +47,9 @@ func run() -> void:
 	review.begin_shot(); game.fire_ballistic(Vector3(0,80,0),Vector3.UP,weapon,review.serial,1,excluded); review._process(0)
 	check(review.reports.is_empty() and replay.ready_to_play,"vertical miss receives a valid replay")
 	review._process(3.8); await capture("miss")
+	var impact_count: int=game.sounds.flesh_index
 	review.cycle_review(); review._process(0)
+	check(game.sounds.flesh_index==impact_count,"browsing history never replays the live flesh sound")
 	check(review.selected==1 and replay.elapsed==0 and replay.ready_to_play,"history replays a previous shot from its beginning")
 	review.begin_shot()
 	for pellet in 8:
@@ -59,6 +68,17 @@ func run() -> void:
 	check(serialized.trajectories[0].times==flight.times,"replay data survives multiplayer serialization")
 	review.scale=Vector2.ONE*.65; review.position=Vector2(1005,125)
 	check(review.position.x+replay.position.x*.65>=0 and review.position.x+review.size.x*.65<=1280 and review.position.y+review.size.y*.65<=360,"paired panels fit each split-screen HUD")
+	# Co-op confirms through the same report handler; misses and range targets are silent.
+	review.begin_shot()
+	var feedback := {"target_uid":991,"species":"deer","damage":12.5,"organs":[],"zone":"body","entry":Vector3.ZERO,"end":Vector3.UP}
+	var before_sound: int=game.sounds.flesh_index
+	game.coop.shot_result(feedback,review.serial)
+	game.coop.shot_result(feedback,review.serial)
+	check(game.sounds.flesh_index==before_sound+1,"co-op flesh feedback is heard once per animal per shot, including pellet volleys")
+	feedback.target_uid=992; game.coop.shot_result(feedback,review.serial)
+	check(game.sounds.flesh_index==before_sound+2,"another animal hit produces its own impact sound")
+	feedback.target_uid=993; feedback.species="target"; game.coop.shot_result(feedback,review.serial)
+	check(game.sounds.flesh_index==before_sound+2,"shooting-range targets do not make flesh sounds")
 	review.reset_history(); review._process(0)
 	check(not review.visible and replay.markers.is_empty(),"new run clears replay resources and history")
 	game.restore_campaign()

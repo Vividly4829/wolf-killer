@@ -107,6 +107,13 @@ func load_shot(entry: Dictionary,restart: bool=false) -> void:
 			var label:=Label3D.new(); label.text=report.species.to_upper()+" / UNHIT"
 			label.font_size=24; label.pixel_size=.007; label.position=body.position+Vector3.UP*1.9
 			label.billboard=BaseMaterial3D.BILLBOARD_ENABLED; label.modulate=Color("8ec9e1"); content.add_child(label)
+		elif species!="target":
+			var damage := 0.0
+			for hit in hits: damage+=float(hit.get("damage",0))
+			var label:=Label3D.new(); label.text="%s / %.1f DAMAGE"%[species.to_upper(),damage]
+			label.font_size=28; label.pixel_size=.007; label.position=body.position+Vector3.UP*1.9
+			label.billboard=BaseMaterial3D.BILLBOARD_ENABLED; label.modulate=Color("ff4545")
+			label.no_depth_test=true; content.add_child(label)
 		helper.queue_free()
 	add_context()
 	for report in entry.reports:

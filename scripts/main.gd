@@ -798,7 +798,6 @@ func resolve_weapon_hit(hit: Dictionary, direction: Vector3, weapon: Dictionary,
 		else:
 			shot_review.record(report,review_serial)
 		hit_flash = 0.15
-		sounds.play("hit", -21)
 	else:
 		_spawn_impact(hit.position, false)
 

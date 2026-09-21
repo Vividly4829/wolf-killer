@@ -27,6 +27,9 @@ var maul_cooldown:=0.0
 var last_scream:=0
 var last_snarl:=0
 var last_tear:=0
+var flesh_voices: Array[AudioStreamPlayer] = []
+var flesh_index := 0
+var last_flesh_variant := -1
 
 func _ready() -> void:
 	silent = DisplayServer.get_name() == "headless"
@@ -59,7 +62,9 @@ func _ready() -> void:
 	add_child(howl_voice)
 	for kind in Gunshots.SAMPLES: samples[kind]=Gunshots.SAMPLES[kind][0]
 	samples["crossbow"] = _crossbow_release()
-	samples["hit"] = _synth(0.08, 650.0, 0.12, 45.0)
+	for i in 3:
+		samples["flesh_hit_%d"%i] = load("res://assets/audio/flesh_hit_%d.wav"%(i+1))
+		var impact := AudioStreamPlayer.new(); add_child(impact); flesh_voices.append(impact)
 	samples["hurt"] = _synth(0.25, 65.0, 0.3, 12.0)
 	samples["coin"] = _synth(0.22, 920.0, 0.0, 13.0)
 	samples["reload"] = _synth(0.14, 340.0, 0.38, 27.0)
@@ -118,6 +123,17 @@ func play_maul(point: Vector3, pitch: float=1.0) -> void:
 		maul_voice.stream_paused=false; maul_voice.play()
 		maul_cooldown=maul_voice.stream.get_length()+randf_range(.5,1.2)
 	play_at("growl",point,-3,pitch)
+
+func play_flesh_hit() -> void:
+	if silent or flesh_voices.is_empty(): return
+	last_flesh_variant=(last_flesh_variant+randi_range(1,2))%3
+	var voice := flesh_voices[flesh_index%flesh_voices.size()]
+	flesh_index+=1
+	voice.stream=samples["flesh_hit_%d"%last_flesh_variant]
+	voice.volume_db=-9.0
+	voice.pitch_scale=randf_range(.94,1.06)
+	voice.stream_paused=false
+	voice.play()
 
 func play_weapon(kind: String) -> void:
 	play(kind,LOCAL_GUN_DB if Gunshots.SAMPLES.has(kind) else -12.0)
@@ -199,6 +215,7 @@ func set_context(sheltered: bool, playing: bool) -> void:
 		wind.stream_paused = not playing
 	if dialogue:
 		dialogue.stream_paused = not playing
+	for voice in flesh_voices: voice.stream_paused=not playing
 	for voice in gun_voices: voice.stream_paused=not playing
 	for voice in gun_spatial: voice.stream_paused=not playing
 	for voice in spatial_voices:

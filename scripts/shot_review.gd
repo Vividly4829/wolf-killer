@@ -127,6 +127,15 @@ func record(report: Dictionary, shot_serial: int = -1) -> void:
 	if shot_serial<0: shot_serial=serial
 	var entry:=entry_for(shot_serial)
 	if entry.is_empty(): return
+	# Play on newly received hits only, never while browsing or replaying history.
+	# One wet impact per animal per shot keeps shotgun pellets from clipping.
+	if report.get("species","wolf")!="target" and float(report.get("damage",0))>0:
+		var sounded: Array = entry.get("impact_sound_targets",[])
+		var target_id: int = int(report.get("target_uid",0))
+		if not sounded.has(target_id):
+			game.sounds.play_flesh_hit()
+			sounded.append(target_id)
+			entry["impact_sound_targets"]=sounded
 	var hits: Array[Dictionary]=entry.reports
 	if hits.size()<18: hits.append(report.duplicate(true))
 	var labels: Array[String]=[]
@@ -143,11 +152,11 @@ func record(report: Dictionary, shot_serial: int = -1) -> void:
 func _process(delta: float) -> void:
 	var expanded: bool = game.hud_detail_left > 0.0
 	var split: bool = is_instance_valid(game.split_session)
-	var factor: float = (.65 if expanded else .45) if split else (1.0 if expanded else .65)
+	var factor: float = (.55 if expanded else .45) if split else (.78 if expanded else .65)
 	scale = Vector2.ONE*factor
 	position = Vector2(1271-410*factor,354-345*factor) if split else Vector2(1255-410*factor,710-345*factor)
-	# Misses retain their arc/range and nearby silhouettes without obscuring play.
-	modulate.a = 1.0 if expanded or not displayed().reports.is_empty() else .38
+	# Every review stays readable; bottom-right layout preserves the aiming area.
+	modulate.a = 1.0
 	if replay_dirty:
 		replay.load_shot(displayed(),replay_restart)
 		replay_dirty=false; replay_restart=false
@@ -178,6 +187,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			cycle_review()
 func label_at(y: float,text: String,color: Color=Color("cbd9e0"),font_size: int=12) -> void:
 	draw_string(font,Vector2(13,y),text,HORIZONTAL_ALIGNMENT_LEFT,385,font_size,color)
+static func damage_text(hits: Array[Dictionary]) -> String:
+	var total := 0.0
+	for hit in hits: total+=float(hit.get("damage",0))
+	return "%.1f DAMAGE" % total
 func _draw() -> void:
 	var shown:=displayed()
 	var hits: Array[Dictionary]=target_reports(shown.reports)
@@ -194,14 +207,14 @@ func _draw() -> void:
 		label_at(86,"No animal hit to inspect.")
 		label_at(286,"Damage: 0")
 	else:
-		var total:=0.0
 		var calculated:=0.0
-		for hit: Dictionary in hits: total+=float(hit.get("damage",0))
 		for hit: Dictionary in hits: calculated+=float(hit.get("calculated_damage",hit.get("damage",0)))
 		var shot: Dictionary=hits.back()
 		label_at(272,"%s  /  %.1f m to hit" % [shot.get("weapon","SHOT"),shot.get("distance",0.0)])
-		label_at(292,"%.1f base × %.2f range × %.2f placement" % [shot.get("base_damage",0.0),shot.get("range_factor",1.0),shot.multiplier])
-		label_at(314,("%.1f estimated weapon damage" % calculated) if target_review else ("%.1f damage / %.1f lost / %.0f cm tissue" % [calculated,total,float(shot.get("body_depth_m",shot.entry.distance_to(shot.end)))*100]),Color("ffcc8a"),12)
+		label_at(295,("%.1f ESTIMATED DAMAGE" % calculated) if target_review else damage_text(hits),Color("ff4545"),24)
+		if not target_review:
+			draw_string(font,Vector2(266,293),"%.0f cm tissue"%(float(shot.get("body_depth_m",shot.entry.distance_to(shot.end)))*100),HORIZONTAL_ALIGNMENT_LEFT,132,10,Color("ffb3a8"))
+		label_at(315,"%.1f base × %.2f range × %.2f zone = %.1f calculated" % [shot.get("base_damage",0.0),shot.get("range_factor",1.0),shot.multiplier,calculated],Color("ffb3a8"),11)
 	label_at(335,"%s older / %d of %d / %s" % ["D-pad down" if game.controller_device>=0 else "X browse / double X close",selected+1,history.size(),"FATAL VITAL HIT" if not hits.is_empty() and hits.back().get("instant_fatal",false) else "combat continues"],Color("91acb9"),10)
 	if not hits.is_empty():
 		draw_string(font,Vector2(14,66),"SIDE",HORIZONTAL_ALIGNMENT_LEFT,-1,10,Color("91acb9"))
