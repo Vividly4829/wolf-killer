@@ -1,5 +1,7 @@
 # Wolf Island — Godot FPS
 
+**[Download the Windows game](https://github.com/Vividly4829/wolf-killer/raw/refs/heads/main/releases/windows/WolfIsland-Windows-x64.zip)** — extract the ZIP and run **WolfIsland.exe**. No Godot installation is needed for this build. [Build details and checksums](releases/windows/README.md).
+
 Roman legionary patrols can now roll as optional surprise encounters from **level 11** onward. They begin with six soldiers and grow with campaign level and extra hunters (up to twelve). A warning precedes their arrival. They advance three abreast, then spread around their target at sword range. Raised shields stop low-penetration frontal torso shots; head, legs and flanks stay exposed, and heavy penetrating shots can punch through with reduced damage. Each soldier carries a red shield and short sword, uses human vital anatomy, and awards the existing human-enemy bounty. Their arrival does not change the main mission quota. Local/online co-op uses the host's combat decisions and replicated models, attacks and deaths.
 
 
@@ -527,7 +529,7 @@ Grenades and dynamite display a live fuse countdown in both player views. Explos
 
 Very close deer can briefly charge or strike before fleeing; this is an occasional defensive reaction, disabled in Free Play. Shot replay now includes up to eight nearby unhit animals at their recorded firing-time positions and frames the closest missed animal for context.
 
-Ordinary wolves can still lose legs, limp and bleed. Deer, other wildlife and werewolves do not currently share that detachable-limb system.
+All animal types now support limb loss: ordinary wolves, deer, mink, bear and werewolf limbs, plus duck/goose legs and wings. Humans retain their existing injury behavior.
 
 
 ## Repository contents
@@ -535,3 +537,10 @@ Ordinary wolves can still lose legs, limp and bleed. Deer, other wildlife and we
 This repository contains the standalone Godot game and all runtime assets. Some historical asset-rebuild notes and scripts refer to the original workspace's parent `game/`, `reference/` or Blender-model folders; those source-workspace folders are not part of this repository and are not needed to play. The source island model has not been modified. Keep the individual asset attribution files with redistributed assets. There is no blanket license grant for this project; third-party assets retain their documented licenses.
 
 Recent focused checks: `tests/test_hunting_combat_polish.gd`, `tests/test_split_session.gd`, `tests/test_shot_replay.gd`, and `tests/test_legionaries.gd`. Older tests document earlier feature stages and may contain outdated expectations.
+
+
+## Health-scaled animal limb loss
+
+Damage accumulates separately in each struck limb. The severing threshold is `max_health * clamp(0.65 + max_health / 800, 0.65, 1.6)`, measured in limb impact damage (shot damage multiplied by the weapon limb-force factor). A higher-health animal therefore requires both more total limb damage and a greater fraction of maximum health. Examples: 18 HP wildlife ≈12.1 impact damage, 70 HP deer ≈51.6, 80 HP wolf 60, 260 HP bear 253.5, and a minimum-420 HP werewolf 493.5. Individual wolf/werewolf stats scale these thresholds automatically.
+
+Only dedicated limb hits count toward these thresholds. Legs/wings disappear from the live model and collision, detached pieces fall, and wounds bleed. Surviving animals slow down; blood loss can finish them after a short interval. Repeated hits to one limb accumulate; hits to different limbs do not combine. Missing-limb state is replicated to co-op clients, including when an animal dies in the same update. Wildlife maximum health stays fixed as its current health falls, so nearly dead animals do not become artificially easy to dismember.
