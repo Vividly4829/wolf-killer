@@ -1,14 +1,14 @@
-﻿{
-    "name":  "Wolf Island",
-    "version":  "0.1.0",
-    "platform":  "Windows x86_64",
-    "engine":  "Godot 4.6.2 stable",
-    "source_commit":  "f1edc1f74b7db21ff9ef39ccdb4b60f4e0a1a1c7",
-    "built_utc":  "2026-09-21T19:59:25.4465342Z",
-    "archive":  "WolfIsland-Windows-x64.zip",
-    "archive_bytes":  64601566,
-    "archive_sha256":  "6276a80c51ab45d8f733e128e496b0f4c611aa0b053731ee55923a828c2748cf",
-    "executable":  "WolfIsland.exe",
-    "executable_bytes":  139144312,
-    "executable_sha256":  "60ff57aa1b7a4e01c999ffd8ea7786c3017a0ba003274d1d4dac869f9989d164"
+{
+  "name": "Wolf Island",
+  "version": "0.1.0",
+  "platform": "Windows x86_64",
+  "engine": "Godot 4.6.2 stable",
+  "source_commit": "7c864cf93f4169a722752bd4806aa2a3e4ee53a2",
+  "built_utc": "2026-09-21T20:09:57.3157446Z",
+  "archive": "WolfIsland-Windows-x64.zip",
+  "archive_bytes": 65831151,
+  "archive_sha256": "079a2f5d1503ba1d472c7454ccbb1088e4f472c4ebf819a33cd2587904ca7b40",
+  "executable": "WolfIsland.exe",
+  "executable_bytes": 139147736,
+  "executable_sha256": "eada283b4d958ddc1cef18ced2005c777b2b15d687d5c9cfd6654ec701034a9f"
 }
