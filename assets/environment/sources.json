@@ -1,0 +1,55 @@
+{
+  "license": "CC0-1.0",
+  "licenseUrl": "https://polyhaven.com/license",
+  "assets": [
+    {
+      "file": "ground-color.jpg",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/forrest_ground_01/forrest_ground_01_diff_1k.jpg",
+      "asset": "https://polyhaven.com/a/forrest_ground_01",
+      "sourceMd5": "236e7d928f5e357a194fd92de189cbe4",
+      "bytes": 331645
+    },
+    {
+      "file": "ground-normal.jpg",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/forrest_ground_01/forrest_ground_01_nor_gl_1k.jpg",
+      "asset": "https://polyhaven.com/a/forrest_ground_01",
+      "sourceMd5": "ba4265df25aea293913d004b69ef9ab0",
+      "bytes": 536745
+    },
+    {
+      "file": "rock-color.jpg",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rocky_terrain/rocky_terrain_diff_1k.jpg",
+      "asset": "https://polyhaven.com/a/rocky_terrain",
+      "sourceMd5": "306ae62c38ab1942a63e831a534875ab",
+      "bytes": 249098
+    },
+    {
+      "file": "rock-normal.jpg",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rocky_terrain/rocky_terrain_nor_gl_1k.jpg",
+      "asset": "https://polyhaven.com/a/rocky_terrain",
+      "sourceMd5": "4d42a558317f1d52c9080c73372d125a",
+      "bytes": 356569
+    },
+    {
+      "file": "wood-color.jpg",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/brown_planks_03/brown_planks_03_diff_1k.jpg",
+      "asset": "https://polyhaven.com/a/brown_planks_03",
+      "sourceMd5": "6c9fdc21afcdf171d0a39999392a70f4",
+      "bytes": 279745
+    },
+    {
+      "file": "wood-normal.jpg",
+      "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/brown_planks_03/brown_planks_03_nor_gl_1k.jpg",
+      "asset": "https://polyhaven.com/a/brown_planks_03",
+      "sourceMd5": "4944cb903b7d7c4029310deb8a51d69e",
+      "bytes": 165924
+    },
+    {
+      "file": "coastal-sky.jpg",
+      "source": "https://dl.polyhaven.org/file/ph-assets/HDRIs/extra/Tonemapped%20JPG/kloofendal_48d_partly_cloudy_puresky.jpg",
+      "asset": "https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky",
+      "sourceMd5": "3f2b19fa9c14943b34e5d4f480ba13ba",
+      "bytes": 150467
+    }
+  ]
+}

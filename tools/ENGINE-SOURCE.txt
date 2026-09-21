@@ -1,0 +1,14 @@
+Godot Engine 4.6.2 stable, Windows x86_64, official standard build.
+Version: 4.6.2.stable.official.71f334935
+
+Source:
+https://github.com/godotengine/godot-builds/releases/tag/4.6.2-stable
+
+Archive:
+https://github.com/godotengine/godot-builds/releases/download/4.6.2-stable/Godot_v4.6.2-stable_win64.exe.zip
+
+SHA-256 verified against the official GitHub release asset digest:
+14293422efb54b24a51f79d4cb55ab4001ef3d936e064a6c8af32e1f984024be
+
+License: MIT. https://godotengine.org/license/
+The .gdignore file excludes this tools folder from the Godot resource importer.
