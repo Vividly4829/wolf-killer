@@ -242,7 +242,7 @@ The cabin’s front and new back door open on approach and close automatically. 
 
 
 
-The world contains surplus deer, ducks, geese and mink on every mission. Predators may hunt them. Orange map markers show current required animals and supply caches and cabin search sites; green marks home. Wildlife rewards remain available outside the quota. Hunted food counts immediately on the kill; explosive-ruined meat cannot satisfy a food job. Missing prey is replenished so predation cannot permanently block progress.
+The world contains surplus deer, ducks, geese and mink on every mission. Predators may hunt them. Orange map markers show current required animals and supply caches and cabin search sites; green marks home. Wildlife rewards remain available outside the quota. Hunter kills count immediately toward hunts, including grenade, dynamite and grenade-launcher kills. Missing prey is replenished so predation cannot permanently block progress.
 
 
 

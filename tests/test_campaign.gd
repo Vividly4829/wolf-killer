@@ -64,13 +64,28 @@ func run() -> void:
 		check(c.event_started and game.wave_total==total,"Optional event preserves job: "+event)
 		if event=="fever": check(c.fever,"Fever applies")
 		if event=="fog": check(game.world.get_node("CoastalAtmosphere").environment.fog_density>.02,"Fog applies")
-	# Spoiled carcasses cannot count, but replacement wildlife keeps jobs possible.
-	start(11); await process_frame
-	for a in game.nodes_in_group("wildlife"):
-		if a.species=="deer": a.set_meta("ruined_meat",true); a.damage(1000)
-	check(game.wave_kills==0,"Explosive meat excluded")
-	c.ensure_huntable()
-	check(game.nodes_in_group("wildlife").any(func(a): return a.species=="deer" and not a.dead),"Replacement prey prevents softlock")
+	# Explosives satisfy hunts just like bullets; exercise the actual blast path.
+	for weapon_id in [24,25,34]:
+		start(1); await process_frame
+		var deer=game.nodes_in_group("wildlife").filter(func(a): return a.species=="deer" and not a.dead)[0]
+		deer.set_physics_process(false); deer.position=Vector3(200,80,200)
+		game.player.position=Vector3(220,80,200)
+		game.shot_review.begin_shot(true)
+		var explosive=preload("res://scripts/crossbow_bolt.gd").new()
+		game.add_child(explosive)
+		explosive.launch(game,deer.position+Vector3.UP*.5,Vector3.FORWARD,game.WeaponCatalog.weapon(weapon_id))
+		explosive.set_physics_process(false)
+		explosive.detonate()
+		check(deer.dead and game.wave_kills==1,"Explosive deer kill counts: weapon %d"%weapon_id)
+		c.animal_killed(deer)
+		check(game.wave_kills==1,"Blast victim counted only once")
+		await process_frame
+		check(game.level==2 and game.mode=="resting","Explosive kill completes hunt: weapon %d"%weapon_id)
+	# Legacy blast flags cannot permanently disqualify surviving animals.
+	start(2); await process_frame
+	var old_blast_victim=game.nodes_in_group("wildlife").filter(func(a): return a.species=="deer" and not a.dead)[0]
+	old_blast_victim.set_meta("ruined_meat",true); old_blast_victim.damage(1000)
+	check(game.wave_kills==1,"Previously blast-hit deer still counts toward hunt")
 	start(12); await process_frame
 	var raider=game.nodes_in_group("campaign_threats")[0]
 	var report=raider.receive_ballistic_hit(.1,raider.to_global(Vector3(-.15,1.65,0)),raider.global_basis*Vector3.RIGHT,"head",0,1,.42)

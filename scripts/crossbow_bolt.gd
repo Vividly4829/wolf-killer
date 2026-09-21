@@ -142,7 +142,6 @@ func detonate() -> void:
 		if d>radius or not blast_visible(center): continue
 		var amount: float = float(spec.damage)*(1-d/radius)
 		var before: float = animal.health
-		animal.set_meta("ruined_meat",true)
 		if animal.is_in_group("campaign_threats"): animal.damage(amount,true)
 		else: animal.damage(amount)
 		var report := {"entry":Vector3.ZERO,"end":Vector3.UP*.4,"organs":[],"zone":"BLAST","species":animal.get("species") if animal.get("species")!=null else "wolf","damage":before-animal.health,"calculated_damage":amount,"base_damage":spec.damage,"range_factor":1-d/radius,"multiplier":1.0,"distance":d,"weapon":spec.name}

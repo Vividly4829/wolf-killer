@@ -201,7 +201,7 @@ func animal_killed(animal: Node3D,paid: bool = true) -> void:
 	if job.kill.has(species) and animal.get_meta("mission",false):
 		done["kill_"+species]=mini(int(job.kill[species]),int(done.get("kill_"+species,0))+1)
 	var key:=species_key(species)
-	if needs_hunt(key) and not animal.get_meta("ruined_meat",false):
+	if needs_hunt(key):
 		done["hunt_"+key]=int(done.get("hunt_"+key,0))+1
 	refresh_progress()
 func refresh_progress() -> void:
