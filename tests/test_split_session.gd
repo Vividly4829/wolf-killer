@@ -37,6 +37,16 @@ func run() -> void:
 	check(host.coop.peer_id()==1 and guest.coop.peer_id()==2,"two stable local player identities")
 	check(guest.player.camera.current and guest.level==host.level,"controller uses its gameplay camera and shared wave")
 	check(host.coop.avatars.size()==1 and guest.coop.avatars.size()==1 and guest.coop.client(),"both hunters can see their teammate immediately")
+	# Rewards are gross round income, shared through the same host snapshot as online play.
+	host.coop.award(25)
+	host.coop.clock+=1; host.coop._process(.2)
+	check(host.coop.earnings_text()==guest.coop.earnings_text() and guest.coop.round_earnings.get(1)==25 and guest.coop.round_earnings.get(2)==25,"both HUDs show round earnings for both hunters")
+	guest.progress.money-=10
+	host.coop.clock+=1; host.coop._process(.2)
+	check(guest.coop.round_earnings.get(2)==25,"spending does not reduce gross round earnings")
+	host.coop.reset_round_earnings()
+	host.coop.clock+=1; host.coop._process(.2)
+	check(guest.coop.round_earnings.get(1)==0 and guest.coop.round_earnings.get(2)==0,"new-round earnings reset is replicated")
 	var deadline:=0
 	if OS.get_cmdline_user_args().has("--capture"):
 		AudioServer.set_bus_volume_db(0,-80)

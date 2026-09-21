@@ -9,7 +9,7 @@ func run() -> void:
 	root.add_child(game); game.start_free_play(); game.set_process(false); game.player.set_physics_process(false); game.campaign.set_process(false)
 	root.mode=Window.MODE_WINDOWED; root.size=Vector2i(1280,720); AudioServer.set_bus_mute(0,true)
 	for animal in game.wolves+game.nodes_in_group("wildlife"): animal.set_physics_process(false)
-	check(game.player.SPRINT_SPEED==8.1 and game.player.MAX_STAMINA==450,"sprint speed and stamina each increased50percent")
+	check(is_equal_approx(game.player.SPRINT_SPEED,6.075) and game.player.MAX_STAMINA==337.5,"sprint speed and stamina reduced by 25 percent")
 	game.player.position=Vector3(150,80,150); game.player.is_sprinting=true
 	var ammo: int=game.current_ammo(); game.fire_weapon()
 	check(game.current_ammo()==ammo and not game.quick_throw(),"sprinting blocks gunfire and quick throws")

@@ -5,6 +5,9 @@ var port := PORT
 const Avatar = preload("res://scripts/coop_avatar.gd")
 var game: Node3D
 var slots: Dictionary = {}
+# Gross rewards received this round; purchases never subtract from this ledger.
+var round_earnings: Dictionary = {1: 0}
+var earning_slots: Dictionary = {1: 1}
 var local_spawn := Vector3.ZERO
 var local_yaw := 0.0
 var generation := 0
@@ -140,6 +143,8 @@ func _peer_connected(id: int) -> void:
 	var slot := 1
 	while slots.values().has(slot): slot += 1
 	slots[id] = slot
+	round_earnings[id] = 0
+	earning_slots[id] = slot+1
 	avatar.position = spawn_point(id)
 	game.add_child(avatar)
 	avatars[id] = avatar
@@ -149,6 +154,8 @@ func _peer_left(id: int) -> void:
 	if avatars.has(id): avatars[id].queue_free(); avatars.erase(id)
 	last_shot.erase(id)
 	slots.erase(id)
+	round_earnings.erase(id)
+	earning_slots.erase(id)
 	check_team_wipe()
 @rpc("any_peer","reliable")
 func ready_player() -> void:
@@ -284,13 +291,13 @@ func _process(delta: float) -> void:
 			send_to(1,"pose",[game.player.position,game.player.yaw,game.player.is_crouching,game.player.get_noise_level(),game.health,game.current_weapon,game.player.is_sprinting,generation])
 		return
 	check_team_wipe()
-	var hunters: Array = [{"id":1,"p":game.player.position,"yaw":game.player.yaw,"health":game.health,"weapon":game.current_weapon}]
+	var hunters: Array = [{"id":1,"p":game.player.position,"yaw":game.player.yaw,"health":game.health,"weapon":game.current_weapon,"earned":round_earnings.get(1,0),"slot":1}]
 	for id in avatars:
 		var avatar = avatars[id]
 		if avatar.mauling!=0:
 			var attacker=instance_from_id(avatar.mauling) if is_instance_id_valid(avatar.mauling) else null
 			if not is_instance_valid(attacker) or attacker.dead or avatar.health<=0 or game.world.is_safe_position(avatar.position): release_remote_maul(id)
-		hunters.append({"id":id,"p":avatar.position,"yaw":avatar.rotation.y,"health":avatar.health,"weapon":maxi(0,avatar.weapon_index)})
+		hunters.append({"id":id,"p":avatar.position,"yaw":avatar.rotation.y,"health":avatar.health,"weapon":maxi(0,avatar.weapon_index),"earned":round_earnings.get(id,0),"slot":int(slots.get(id,1))+1})
 	var animals: Array = []
 	for wolf in game.wolves+game.nodes_in_group("wolf_corpses"):
 		animals.append({"id":wolf.get_instance_id(),"limbs":wolf.limbs.snapshot() if wolf.limbs else {},"p":wolf.position,"yaw":wolf.rotation.y,"health":wolf.health,"seed":int(wolf.profile.profile_seed),"boss":wolf.werewolf,"mission":wolf.get_meta("mission",false),"type":"wolf","move":wolf._velocity.length(),"max_health":wolf.max_health,"behavior":wolf.behavior,"injuries":wolf.leg_injuries,"severed":wolf.severed_legs,"side":wolf.reaction.side if wolf.reaction else 1.0,"alerted":wolf.alerted,"dead":wolf.dead,"down":wolf.reaction.down if wolf.reaction else 0.0,"flinch":wolf.reaction.flinch if wolf.reaction else 0.0})
@@ -347,9 +354,12 @@ func state(hunters: Array,animals: Array,wave: int,mode: String,waiting: bool,pe
 	game.pending_spawns = pending
 	game.wave_total = total
 	if mode=="dead" and game.mode!="dead": team_failed()
+	round_earnings.clear(); earning_slots.clear()
 	var seen: Array = []
 	for hunter: Dictionary in hunters:
 		var id: int = hunter.id
+		round_earnings[id] = int(hunter.get("earned",0))
+		earning_slots[id] = int(hunter.get("slot",1))
 		if id==peer_id(): continue
 		seen.append(id)
 		if not avatars.has(id):
@@ -510,8 +520,25 @@ func shot_miss(serial: int) -> void:
 		game.shot_review.caption = "MISS — NO ANIMAL HIT"
 		game.shot_review.remaining = 7
 		game.shot_review.queue_redraw()
+func reset_round_earnings() -> void:
+	round_earnings = {1: 0}; earning_slots = {1: 1}
+	if not client():
+		for id in avatars:
+			round_earnings[id] = 0
+			earning_slots[id] = int(slots.get(id,1))+1
+func earnings_text() -> String:
+	var ids: Array = round_earnings.keys()
+	ids.sort_custom(func(a,b): return int(earning_slots.get(a,1)) < int(earning_slots.get(b,1)))
+	var parts: PackedStringArray = []
+	for id in ids:
+		parts.append("P%d +%d" % [int(earning_slots.get(id,1)),int(round_earnings[id])])
+	return "ROUND CR  /  " + " · ".join(parts)
 func award(amount: int) -> void:
-	if active and not client(): send_all("grant_money",[amount])
+	if client(): return
+	round_earnings[1] = int(round_earnings.get(1,0))+amount
+	if active:
+		for id in connected_peers(): round_earnings[id] = int(round_earnings.get(id,0))+amount
+		send_all("grant_money",[amount])
 @rpc("authority","reliable")
 func grant_money(amount: int) -> void:
 	game.progress.money += amount

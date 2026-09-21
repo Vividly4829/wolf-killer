@@ -11,6 +11,8 @@ var overlay: Control
 var gameplay: Control
 var level_label: Label
 var status_label: Label
+var round_money_label: Label
+var compact_layout: Dictionary = {}
 var money_label: Label
 var health_label: Label
 var ammo_label: Label
@@ -77,6 +79,7 @@ func _ready() -> void:
 	campaign_title=_label(gameplay,"",Vector2(34,113),14,PAPER)
 	campaign_title.size.x=276; campaign_title.clip_text=true
 	money_label = _label(gameplay, "", Vector2(34, 145), 16, ACCENT)
+	round_money_label = _label(gameplay, "", Vector2(34, 169), 13, ACCENT)
 	health_label = _label(gameplay, "", Vector2(34, 606), 30)
 	_label(gameplay, "HEALTH", Vector2(106, 620), 12, MUTED)
 	_label(gameplay, "STAMINA", Vector2(34, 675), 10, MUTED)
@@ -102,7 +105,7 @@ func _ready() -> void:
 	subtitle_label = _label(gameplay, "", Vector2(310, 553), 19, PAPER)
 	subtitle_label.size.x = 660
 	subtitle_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	stealth_label = _label(gameplay, "", Vector2(34, 180), 12, PAPER)
+	stealth_label = _label(gameplay, "", Vector2(34, 204), 12, PAPER)
 	injury_label = _label(gameplay, "", Vector2(34, 536), 12, Color("ee9b91"))
 	struggle_label = _label(gameplay, "", Vector2(330, 36), 20, PAPER)
 	struggle_label.size.x = 620
@@ -115,6 +118,18 @@ func _ready() -> void:
 	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(overlay)
 	refresh_panel()
+	for child in gameplay.get_children():
+		if child is Control: compact_layout[child] = {"position":child.position,"scale":child.scale}
+
+func hud_factor() -> float:
+	return 1.0 if game.hud_detail_left>0.0 else .72
+
+func hud_anchor(point: Vector2) -> Vector2:
+	return Vector2(20 if point.x<310 else 1257 if point.x>900 else 640,18 if point.y<300 else 360 if point.y<450 and point.x>=310 else 704)
+
+func draw_group(anchor: Vector2) -> void:
+	var factor := hud_factor()
+	draw_set_transform(anchor*(1.0-factor),0,Vector2.ONE*factor)
 
 func _label(parent: Node, value: String, point: Vector2, font_size: int, color: Color = PAPER) -> Label:
 	var label := Label.new()
@@ -600,13 +615,15 @@ func _defeat() -> void:
 	_button(overlay, "MAIN MENU", Rect2(450, 530, 380, 45), game.return_to_menu)
 
 func _process(_delta: float) -> void:
+	for child in compact_layout:
+		child.position = compact_layout[child].position
+		child.scale = compact_layout[child].scale
 	weather_label.text = "HESTAVIKHOLMEN / " + game.world.weather.description()
 	weather_label.add_theme_font_size_override("font_size",10)
 	campaign_title.text="SHOOTING RANGE" if game.free_play else str((game.campaign.job if game.campaign.running else game.campaign.preview()).get("title",""))
 	var review_open: bool = is_instance_valid(game.shot_review) and game.shot_review.remaining > 0
-	weapon_label.position.x = 530 if review_open else 973
-	ammo_label.position.x = 530 if review_open else 970
-	ammo_detail_label.position.x = 530 if review_open else 970
+	if review_open:
+		for item in [weapon_label,ammo_label,ammo_detail_label]: item.position.y -= 328
 	if not is_instance_valid(gameplay):
 		return
 	if game.mode == "resting" and is_instance_valid(rest_shade):
@@ -626,6 +643,7 @@ func _process(_delta: float) -> void:
 		level_label.text = "FP"
 		status_label.text = "FREE PLAY\nNon-hostile animals"
 	money_label.text = "PRACTICE / NOT SAVED" if game.free_play else "%d  CR  /  BANKED" % game.progress.money
+	round_money_label.text = game.coop.earnings_text()
 	health_label.text = "%03d" % ceili(game.health)
 	var owned_slot: int = game.current_slot
 	var shortcut := "LB/RB" if game.controller_device>=0 else (str(owned_slot + 1) if owned_slot >= 0 and owned_slot < 9 else "Q/WHEEL")
@@ -679,27 +697,42 @@ func _process(_delta: float) -> void:
 	injury_label.position.y=579
 	struggle_label.text = ("BREAK FREE: %d%%\n%s" % [roundi(game.struggle_progress*100),"HOLD RT TO FIGHT BACK" if game.controller_device>=0 else "HOLD F OR LEFT MOUSE TO FIGHT BACK"]) if game.is_struggling() else ""
 	wolf_focus_label.text = game.get_focused_wolf_text()
+	weapon_controls.visible = not review_open
+	movement_controls.visible = not review_open
+	subtitle_label.visible = not review_open
+	for child in compact_layout:
+		var anchor := Vector2(1257,704) if child in [weapon_label,ammo_label,ammo_detail_label] else hud_anchor(child.position)
+		child.position = anchor+(child.position-anchor)*hud_factor()
+		child.scale = compact_layout[child].scale*hud_factor()
 	queue_redraw()
 
 func _draw() -> void:
 	if not game or game.mode != "playing":
 		return
 	# Dark transparent backing keeps white text clear against sea and sky.
-	draw_style_box(_panel_style(), Rect2(20, 18, 302, 155))
+	draw_group(Vector2(20,18))
+	draw_style_box(_panel_style(), Rect2(20, 18, 302, 180))
+	draw_group(Vector2(20,704))
 	draw_style_box(_panel_style(), Rect2(20, 594, 240, 110))
-	var ammo_x := 516.0 if is_instance_valid(game.shot_review) and game.shot_review.remaining>0 else 958.0
-	draw_style_box(_panel_style(), Rect2(ammo_x, 577, 299, 127))
+	var ammo_x := 958.0
+	var ammo_y := 249.0 if is_instance_valid(game.shot_review) and game.shot_review.remaining>0 else 577.0
+	draw_group(Vector2(640 if ammo_x<900 else 1257,704))
+	draw_style_box(_panel_style(), Rect2(ammo_x, ammo_y, 299, 104 if ammo_y<577 else 127))
 	if game.dialogue_left > 0:
+		draw_group(Vector2(640,704))
 		draw_style_box(_panel_style(), Rect2(304, 546, 672, 41))
 	if game.reload_left > 0:
+		draw_group(Vector2(640 if ammo_x<900 else 1257,704))
 		var reload_fraction: float = 1.0 - game.reload_left / game.reload_duration
-		draw_rect(Rect2(ammo_x+24, 661, 250, 3), Color("485968"))
-		draw_rect(Rect2(ammo_x+24, 661, 250 * reload_fraction, 3), ACCENT)
+		draw_rect(Rect2(ammo_x+24, ammo_y+84, 250, 3), Color("485968"))
+		draw_rect(Rect2(ammo_x+24, ammo_y+84, 250 * reload_fraction, 3), ACCENT)
+	draw_group(Vector2(20,704))
 	draw_rect(Rect2(34, 654, 210, 5), Color("52665f"))
 	draw_rect(Rect2(34, 654, 210 * game.health / game.maximum_health(), 5), ACCENT if game.health > 30 else Color("e98973"))
 	draw_rect(Rect2(102, 680, 142, 3), Color("52665f"))
 	var stamina: float = game.player.stamina
 	draw_rect(Rect2(102, 680, 142 * stamina / game.player.MAX_STAMINA, 3), MUTED)
+	draw_set_transform(Vector2.ZERO)
 	if game.mode == "playing":
 		# Aim through the physical sights; no crosshair or centre-screen hit marker.
 		if game.damage_flash > 0:
@@ -710,10 +743,13 @@ func _draw() -> void:
 			var inset := float(edge * 12)
 			draw_rect(Rect2(Vector2(inset, inset), size - Vector2.ONE * inset * 2), Color(0.45, 0.025, 0.03, strength), false, 15)
 	if game.is_struggling():
+		draw_group(Vector2(640,18))
 		draw_style_box(_panel_style(), Rect2(322, 29, 636, 67))
 		draw_rect(Rect2(415, 104, 450, 6), Color(0.12, 0.12, 0.16, 0.9))
 		draw_rect(Rect2(415, 104, 450 * game.struggle_progress, 6), Color("e4aa92"))
+	draw_group(Vector2(1257,18))
 	_draw_map()
+	draw_set_transform(Vector2.ZERO)
 
 func _panel_style() -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()

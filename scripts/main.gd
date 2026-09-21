@@ -19,6 +19,7 @@ var controller_device := -1
 var split_session: Node
 var world: Node3D
 var player: Node3D
+var hud_detail_left := 0.0
 var hud: Control
 var shot_review: Control
 var sounds: Node
@@ -210,6 +211,7 @@ func _update_pursuit() -> void:
 		last_pursuit_cell = target_cell
 
 func _process(delta: float) -> void:
+	hud_detail_left = maxf(0.0, hud_detail_left-delta)
 	world.wolf_nav.pump_field()
 	hit_flash = maxf(0, hit_flash - delta)
 	damage_flash = maxf(0, damage_flash - delta)
@@ -328,6 +330,7 @@ func start_from_menu() -> void:
 	start_run(false,true)
 
 func start_run(sandbox: bool = false, use_menu_settings: bool = false) -> void:
+	coop.reset_round_earnings()
 	restore_campaign()
 	campaign.reset()
 	free_play = sandbox
@@ -578,6 +581,7 @@ func wolf_defeated(wolf: Node3D) -> void:
 
 
 func begin_rest() -> void:
+	coop.reset_round_earnings()
 	if not coop.client(): world.houses.reroll()
 	world.weather.wake(level)
 	end_wolf_struggle(false)

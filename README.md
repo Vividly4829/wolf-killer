@@ -36,7 +36,7 @@ To edit the game, double-click **[Open in Godot.cmd](Open%20in%20Godot.cmd)**, o
 
 
 
-Standing eye height is **1.78 m**, with **2.85 m/s walking** and **5.4 m/s sprinting**, before terrain or injury modifiers.
+Standing eye height is **1.78 m**, with **2.85 m/s walking** and **6.075 m/s sprinting**, before terrain or injury modifiers.
 
 The southern rock stub now crosses onto the mainland, creating a loop. The longer south-island bridge also has bank approach ramps at both ends.
 
@@ -391,7 +391,7 @@ Current update checks and native screenshots: [September 20 playtest update](qa/
 
 ## Slower survival movement, looting and lycanthropy
 
-Walking is 2.85 m/s, sprinting 5.4 m/s and crouching 1.25 m/s, with gradual acceleration and gentler head bob. Sprinting takes priority over holding aim: it lowers the weapon, removes zoom and applies a minimum wide hip-fire spread. Musket reload immobilization remains unchanged. Bush patches reduce player and wolf movement to 55% of normal speed; crossings and entrances are kept clear of shrubs.
+Walking is 2.85 m/s, sprinting 6.075 m/s and crouching 1.25 m/s, with gradual acceleration and gentler head bob. Sprinting takes priority over holding aim: it lowers the weapon, removes zoom and applies a minimum wide hip-fire spread. Musket reload immobilization remains unchanged. Bush patches reduce player and wolf movement to 55% of normal speed; crossings and entrances are kept clear of shrubs.
 
 The six mapped neighboring cabins/outbuildings have game-only open entrances, interior floors and access steps. Wolves can follow you inside; only the original starting cabin is a sanctuary. Press **E / Xbox Y** beside visible weapons to collect them without paying. Each wake refreshes each building's pickup: a cheap throwing weapon/self bow normally, or an 8% chance of a better period weapon. Pickups are shared in co-op and can be claimed only once per wake. Duplicate weapons refill ammunition. These fictional interiors and runtime terrain adjustments do not edit the source as-is model or GLBs.
 
@@ -523,7 +523,7 @@ The Luger is an explicit later-era exception requested for the premium armory; t
 
 ## Hunting and combat polish
 
-Sprinting is now **8.1 m/s** (50% faster), with **450 stamina** (50% more). You cannot shoot or quick-throw while sprinting. Raiders use bows, knives, axes and spears, with physical projectiles stopped by walls and close-range melee. Source-tagged non-solid foliage no longer blocks bullets; solid structures still do.
+Sprinting is now **6.075 m/s**, with **337.5 stamina** (both reduced by 25% from the previous build). You cannot shoot or quick-throw while sprinting. Raiders use bows, knives, axes and spears, with physical projectiles stopped by walls and close-range melee. Source-tagged non-solid foliage no longer blocks bullets; solid structures still do.
 
 Grenades and dynamite display a live fuse countdown in both player views. Explosions produce larger fire/smoke clouds. Launcher shells explode immediately on impact. Cached dual-gun models preserve their wood, brass and steel materials.
 
@@ -544,3 +544,7 @@ Recent focused checks: `tests/test_hunting_combat_polish.gd`, `tests/test_split_
 Damage accumulates separately in each struck limb. The severing threshold is `max_health * clamp(0.65 + max_health / 800, 0.65, 1.6)`, measured in limb impact damage (shot damage multiplied by the weapon limb-force factor). A higher-health animal therefore requires both more total limb damage and a greater fraction of maximum health. Examples: 18 HP wildlife ≈12.1 impact damage, 70 HP deer ≈51.6, 80 HP wolf 60, 260 HP bear 253.5, and a minimum-420 HP werewolf 493.5. Individual wolf/werewolf stats scale these thresholds automatically.
 
 Only dedicated limb hits count toward these thresholds. Legs/wings disappear from the live model and collision, detached pieces fall, and wounds bleed. Surviving animals slow down; blood loss can finish them after a short interval. Repeated hits to one limb accumulate; hits to different limbs do not combine. Missing-limb state is replicated to co-op clients, including when an animal dies in the same update. Wildlife maximum health stays fixed as its current health falls, so nearly dead animals do not become artificially easy to dismember.
+
+### Compact HUD and round rewards
+
+The gameplay HUD is smaller by default, including the condition avatar, map and shot reviews. Miss X-rays and their replays are more transparent. Keyboard **X** restores full-size HUD details for eight seconds and still cycles older shots; controller D-pad down expands that player's shot review. Stores and menus retain their normal size. The round credit row lists gross rewards received by every connected player (P1–P3); purchases do not reduce it. It resets when the next round begins at the cabin or a new run starts. Shared rewards still go to every player.

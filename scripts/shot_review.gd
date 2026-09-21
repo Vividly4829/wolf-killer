@@ -98,7 +98,9 @@ func _refresh_models() -> void:
 	for front in front_views: front.review(shown)
 	queue_redraw()
 func cycle_review() -> void:
-	if history.is_empty() or not game.mode in ["playing","resting"]: return
+	if not game.mode in ["playing","resting"]: return
+	game.hud_detail_left = 8.0
+	if history.is_empty(): return
 	selected=0 if remaining<=0 else (selected+1)%history.size()
 	remaining=DISPLAY_SECONDS; replay_restart=true
 	_refresh_models()
@@ -131,6 +133,13 @@ func record(report: Dictionary, shot_serial: int = -1) -> void:
 	if displayed().serial==shot_serial:
 			remaining=DISPLAY_SECONDS; _refresh_models()
 func _process(delta: float) -> void:
+	var expanded: bool = game.hud_detail_left > 0.0
+	var split: bool = is_instance_valid(game.split_session)
+	var factor: float = (.65 if expanded else .45) if split else (1.0 if expanded else .65)
+	scale = Vector2.ONE*factor
+	position = Vector2(1271-410*factor,354-345*factor) if split else Vector2(1255-410*factor,710-345*factor)
+	# Misses retain their arc/range and nearby silhouettes without obscuring play.
+	modulate.a = 1.0 if expanded or not displayed().reports.is_empty() else .38
 	if replay_dirty:
 		replay.load_shot(displayed(),replay_restart)
 		replay_dirty=false; replay_restart=false
