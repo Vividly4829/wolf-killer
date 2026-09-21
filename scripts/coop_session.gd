@@ -293,11 +293,11 @@ func _process(delta: float) -> void:
 		hunters.append({"id":id,"p":avatar.position,"yaw":avatar.rotation.y,"health":avatar.health,"weapon":maxi(0,avatar.weapon_index)})
 	var animals: Array = []
 	for wolf in game.wolves+game.nodes_in_group("wolf_corpses"):
-		animals.append({"id":wolf.get_instance_id(),"p":wolf.position,"yaw":wolf.rotation.y,"health":wolf.health,"seed":int(wolf.profile.profile_seed),"boss":wolf.werewolf,"mission":wolf.get_meta("mission",false),"type":"wolf","move":wolf._velocity.length(),"max_health":wolf.max_health,"behavior":wolf.behavior,"injuries":wolf.leg_injuries,"severed":wolf.severed_legs,"side":wolf.reaction.side if wolf.reaction else 1.0,"alerted":wolf.alerted,"dead":wolf.dead,"down":wolf.reaction.down if wolf.reaction else 0.0,"flinch":wolf.reaction.flinch if wolf.reaction else 0.0})
+		animals.append({"id":wolf.get_instance_id(),"limbs":wolf.limbs.snapshot() if wolf.limbs else {},"p":wolf.position,"yaw":wolf.rotation.y,"health":wolf.health,"seed":int(wolf.profile.profile_seed),"boss":wolf.werewolf,"mission":wolf.get_meta("mission",false),"type":"wolf","move":wolf._velocity.length(),"max_health":wolf.max_health,"behavior":wolf.behavior,"injuries":wolf.leg_injuries,"severed":wolf.severed_legs,"side":wolf.reaction.side if wolf.reaction else 1.0,"alerted":wolf.alerted,"dead":wolf.dead,"down":wolf.reaction.down if wolf.reaction else 0.0,"flinch":wolf.reaction.flinch if wolf.reaction else 0.0})
 	for animal in game.nodes_in_group("wildlife"):
-		animals.append({"id":animal.get_instance_id(),"p":animal.position,"yaw":animal.rotation.y,"health":animal.health,"type":animal.species,"bleed":animal.bleeding_rate,"fear":animal.fear_left,"alerted":animal.alerted,"move":animal.velocity.length(),"aquatic":animal.aquatic,"dead":animal.dead,"down":animal.reaction.down,"flinch":animal.reaction.flinch})
+		animals.append({"id":animal.get_instance_id(),"limbs":animal.limbs.snapshot(),"max_health":animal.max_health,"p":animal.position,"yaw":animal.rotation.y,"health":animal.health,"type":animal.species,"bleed":animal.bleeding_rate,"fear":animal.fear_left,"alerted":animal.alerted,"move":animal.velocity.length(),"aquatic":animal.aquatic,"dead":animal.dead,"down":animal.reaction.down,"flinch":animal.reaction.flinch})
 	for actor in game.nodes_in_group("campaign_threats"):
-		animals.append({"id":actor.get_instance_id(),"p":actor.position,"yaw":actor.rotation.y,"health":actor.health,"type":actor.species,"weapon":actor.raider_weapon,"dead":actor.dead,"mission":actor.get_meta("mission",false),"down":actor.reaction.down,"flinch":actor.reaction.flinch,"move":2.8 if not actor.route.is_empty() else 0.0,"alerted":actor.alerted,"attack":actor.species=="legionary" and actor.cooldown>.85})
+		animals.append({"id":actor.get_instance_id(),"limbs":actor.limbs.snapshot() if actor.limbs else {},"p":actor.position,"yaw":actor.rotation.y,"health":actor.health,"type":actor.species,"weapon":actor.raider_weapon,"dead":actor.dead,"mission":actor.get_meta("mission",false),"down":actor.reaction.down,"flinch":actor.reaction.flinch,"move":2.8 if not actor.route.is_empty() else 0.0,"alerted":actor.alerted,"attack":actor.species=="legionary" and actor.cooldown>.85})
 	var projectiles: Array = []
 	for bolt in game.nodes_in_group("player_bolts")+game.nodes_in_group("enemy_bolts"):
 		projectiles.append({"id":bolt.get_instance_id(),"p":bolt.position,"v":bolt.velocity,"type":bolt.spec.id,"fuse":maxf(0,float(bolt.spec.get("fuse",0))-float(bolt.get("age"))) if bolt.spec.get("explosive",false) and not bolt.spec.get("launcher",false) else -1.0})
@@ -666,17 +666,19 @@ func apply_animal_life(node: Node3D, data: Dictionary) -> void:
 		if node is IslandWolf:
 			node.behavior="dead"; node.detection_state="dead"; node._hurt_label.visible=false
 			node.remove_from_group("wolves")
+	if node.get("limbs")!=null: node.limbs.apply_snapshot(data.get("limbs",{}))
+	if node is IslandWolf:
+		node.leg_injuries=data.get("injuries",{}).duplicate()
+		node.severed_legs.assign(data.get("severed",[]))
+		for zone in node.severed_legs:
+			var bone_name: String=node.LEG_BONES[zone]
+			if node._skeleton and node._joints.has(bone_name): node._skeleton.set_bone_pose_scale(int(node._joints[bone_name][0]),Vector3.ONE*.008)
 	if node.dead: return
 	node.reaction.down=float(data.get("down",0))
 	node.reaction.flinch=float(data.get("flinch",0))
 	node.reaction.side=float(data.get("side",1))
 	if node is IslandWolf:
 		node.behavior=str(data.get("behavior","observe"))
-		node.leg_injuries=data.get("injuries",{}).duplicate()
-		node.severed_legs.assign(data.get("severed",[]))
-		for zone in node.severed_legs:
-			var bone_name: String=node.LEG_BONES[zone]
-			if node._skeleton and node._joints.has(bone_name): node._skeleton.set_bone_pose_scale(int(node._joints[bone_name][0]),Vector3.ONE*.008)
 	else:
 		if node.get("fear_left")!=null: node.fear_left=float(data.get("fear",0))
 		if node.get("alerted")!=null: node.alerted=bool(data.get("alerted",false))

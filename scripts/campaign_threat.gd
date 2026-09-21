@@ -24,6 +24,7 @@ var warning := 0.0
 var memory_left := 0.0
 var phase := 0.0
 var legs: Array[Node3D]=[]
+var limbs: Node
 var target: Node3D
 var cover_side := 1.0
 var trail := 0.0
@@ -48,6 +49,8 @@ func _ready() -> void:
 	for organ in organs:
 		var extra:=CollisionShape3D.new(); var volume:=SphereShape3D.new(); volume.radius=1
 		extra.shape=volume; extra.position=organ.center; extra.scale=organ.radii*1.1; hit.add_child(extra)
+	if species=="bear":
+		limbs=preload("res://scripts/animal_limbs.gd").new(); limbs.animal=self; add_child(limbs)
 func ellipsoid(p: Vector3,r: Vector3,color: Color) -> MeshInstance3D:
 	var node:=MeshInstance3D.new(); var sphere:=SphereMesh.new(); sphere.radius=1; sphere.height=2
 	sphere.radial_segments=18; sphere.rings=10; node.mesh=sphere; node.position=p; node.scale=r
@@ -64,9 +67,10 @@ func build_bear() -> void:
 		ellipsoid(Vector3(side*.24,1.30,.87),Vector3(.12,.13,.08),fur)
 		ellipsoid(Vector3(side*.20,1.10,1.22),Vector3(.035,.026,.025),Color("15110c"))
 		for z in [-.56,.60]:
-			legs.append(ellipsoid(Vector3(side*.32,.40,z),Vector3(.18,.43,.21),fur.darkened(.1)))
-			ellipsoid(Vector3(side*.32,.12,z+.12),Vector3(.19,.12,.28),fur)
-			for claw in 3: ellipsoid(Vector3(side*.32+(claw-1)*.08,.10,z+.35),Vector3(.023,.025,.09),Color("a89d83"))
+			var zone: String=("front" if z>0 else "rear")+("_left_leg" if side<0 else "_right_leg")
+			var leg:=ellipsoid(Vector3(side*.32,.40,z),Vector3(.18,.43,.21),fur.darkened(.1)); leg.set_meta("limb",zone); legs.append(leg)
+			ellipsoid(Vector3(side*.32,.12,z+.12),Vector3(.19,.12,.28),fur).set_meta("limb",zone)
+			for claw in 3: ellipsoid(Vector3(side*.32+(claw-1)*.08,.10,z+.35),Vector3(.023,.025,.09),Color("a89d83")).set_meta("limb",zone)
 func build_raider() -> void:
 	var hunter=preload("res://scripts/field_character.gd").new()
 	hunter.coat_color=Color("665043"); hunter.rotation.y=PI
@@ -162,6 +166,7 @@ func _physics_process(delta: float) -> void:
 	if not route.is_empty() and warning<=0:
 		var direction:=route[0]-position; direction.y=0
 		var speed: float=(6.1 if species=="bear" else 2.6) if alerted else .85
+		if limbs: speed*=limbs.speed_factor()
 		speed*=game.world.wolf_nav.vegetation_factor(position)
 		var step:=direction.normalized()*minf(direction.length(),delta*speed)
 		var prior:=position
@@ -198,6 +203,9 @@ func strike(victim: Node3D,amount: float) -> void:
 		var shooter: int=game.coop.shooter; game.coop.shooter=0; game.coop.friendly_hit(victim.peer_id,amount); game.coop.shooter=shooter
 	else: victim.damage(amount)
 func receive_ballistic_hit(amount: float,point: Vector3,direction: Vector3,_zone: String,_force: float,vital_bonus: float=1,penetration: float=.65) -> Dictionary:
+	if limbs and limbs.parts.has(_zone):
+		paid=true; hear(point-direction*4)
+		return limbs.hit(_zone,amount,_force,point,direction)
 	var entry:=to_local(point); var ray: Vector3=(global_basis.inverse()*direction).normalized()
 	var report: Dictionary=preload("res://scripts/human_xray.gd").trace(entry,ray,amount,penetration) if species in ["raider","legionary"] else preload("res://scripts/wildlife_anatomy.gd").trace("bear",entry,ray,penetration*.75)
 	report.species="raider" if species in ["raider","legionary"] else "bear"; report.zone="BODY"

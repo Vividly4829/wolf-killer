@@ -163,6 +163,22 @@ func severed_limb(point: Vector3, direction: Vector3, fur_color: Color = Color(.
 	_limbs.append({"node": limb, "velocity": velocity, "spin": Vector3(_rng.randf_range(-5, 5), _rng.randf_range(-4, 4), _rng.randf_range(-5, 5)), "age": 0.0, "life": LIMB_LIFETIME, "ground": _ground_height(point), "rest_height": .11 * limb_scale, "pool_radius": .18 * limb_scale, "resting": false})
 	blood_burst(point, direction, 1.25)
 
+func animal_limb(sources: Array,point: Vector3,direction: Vector3,radius: float,length: float) -> void:
+	_prepare_resources(); _trim(_limbs,MAX_LIMBS)
+	var limb:=Node3D.new(); limb.name="DetachedAnimalLimb"; add_child(limb); limb.global_position=point
+	if not sources.is_empty():
+		for source in sources:
+			var copy: Node3D=source.duplicate(); limb.add_child(copy); copy.global_transform=source.global_transform; copy.show()
+	else:
+		# Skinned limbs use a matching-size lower leg and hoof/paw fragment.
+		var skin:=_material(Color("705641"))
+		_limb_part(limb,_taper(radius,radius*.55,length),Vector3.DOWN*length*.5,skin)
+		var foot:=BoxMesh.new(); foot.size=Vector3(radius*1.4,radius*.7,radius*2)
+		_limb_part(limb,foot,Vector3(0,-length,radius*.3),_material(Color("302822")))
+		_limb_part(limb,_taper(radius,radius,.02),Vector3.ZERO,_stump_material)
+	var velocity:=direction.normalized()*1.8+Vector3.UP*1.5
+	_limbs.append({"node":limb,"velocity":velocity,"spin":Vector3(2,3,1),"age":0.0,"life":LIMB_LIFETIME,"ground":_ground_height(point),"rest_height":radius,"pool_radius":radius*2,"resting":false})
+
 func _ground_height(point: Vector3) -> float:
 	if not is_inside_tree():
 		return point.y - .65

@@ -23,6 +23,7 @@ var speed: float = 2.8
 var charge_speed: float = 7.3
 var model: Node3D
 var werewolf := false
+var limbs: Node
 var prey: Node3D
 var prey_timer := 0.0
 var hunted_hunter: Node3D
@@ -47,6 +48,7 @@ func make_werewolf() -> void:
 			shape.height=1.35 if zone=="body" else .44 if zone=="head" else .8
 			child.shape=shape
 			child.position=Vector3(0,1.55,0) if zone=="body" else Vector3(0,2.35,.1) if zone=="head" else Vector3(-.49 if "left" in zone else .49,1.45,0) if "front" in zone else Vector3(-.20 if "left" in zone else .20,.65,0)
+	limbs=preload("res://scripts/animal_limbs.gd").new(); limbs.animal=self; add_child(limbs)
 	_hurt_label.position.y=2.85
 	if not reaction:
 		reaction=preload("res://scripts/animal_reaction.gd").new(); reaction.animal=self; add_child(reaction)
@@ -268,6 +270,14 @@ func _blood_pool(size: float) -> void:
 		gore.call("blood_pool", global_position, size * size_scale)
 
 func receive_ballistic_hit(amount: float, world_hit: Vector3, shot_direction: Vector3, hit_zone: String, limb_force: float, vital_bonus: float = 1.0, penetration_m: float = .7) -> Dictionary:
+	if werewolf and limbs and limbs.parts.has(hit_zone):
+		if behavior=="maul":
+			if hunted_hunter==game.player: game.end_wolf_struggle(true)
+			elif is_instance_valid(hunted_hunter): game.coop.release_remote_maul(hunted_hunter.peer_id)
+		var result: Dictionary=limbs.hit(hit_zone,amount,limb_force,world_hit,shot_direction)
+		injury_speed_scale=limbs.speed_factor()
+		if not dead: _alert_to(world_hit-shot_direction*10)
+		return result
 	var entry := to_local(world_hit) / size_scale
 	var direction := (global_basis.inverse() * shot_direction).normalized()
 	var penetration := penetration_m / size_scale
@@ -300,7 +310,7 @@ func receive_hit(amount: float, world_hit: Vector3, shot_direction: Vector3, hit
 		return
 	_blood_burst(world_hit, shot_direction, clampf(amount / 60.0, 0.4, 2.0))
 	if LEG_BONES.has(hit_zone) and not severed_legs.has(hit_zone):
-		var severity: float = minf(1.0, float(leg_injuries.get(hit_zone, 0.0)) + amount * limb_force / 70.0)
+		var severity: float = minf(1.0, float(leg_injuries.get(hit_zone, 0.0)) + amount * limb_force / preload("res://scripts/animal_limbs.gd").threshold(max_health))
 		leg_injuries[hit_zone] = severity
 		bleeding_rate = maxf(bleeding_rate, 1.5 + severity * 3.0)
 		injury_speed_scale = minf(injury_speed_scale, 0.78 - severity * 0.23)

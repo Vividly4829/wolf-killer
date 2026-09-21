@@ -2,6 +2,8 @@ extends Node3D
 var game: Node
 var species := "deer"
 var health := 70.0
+var max_health:=70.0
+var limbs: Node
 var dead := false
 var size_scale := 1.0
 var bleeding_rate := 0.0
@@ -41,6 +43,7 @@ func _ready() -> void:
 	add_to_group("wildlife")
 	escape_angle=randf_range(-PI,PI)
 	health = 70 if species=="deer" else 18
+	max_health=health
 	reward = 15 if species=="deer" else (7 if species=="goose" else 5)
 	if species in ["deer","mink"]:
 		model = load("res://assets/wildlife/"+species+".glb").instantiate()
@@ -84,8 +87,8 @@ func _ready() -> void:
 		ellipsoid(Vector3(0,.72 if goose else .46,.24),Vector3(.095,.095,.12),Color("d6d2be") if goose else Color("284e3a"))
 		ellipsoid(Vector3(0,.69 if goose else .435,.36),Vector3(.065,.026,.09),Color("d2963e"))
 		for side in [-1,1]:
-			ellipsoid(Vector3(side*.07,.055,.02),Vector3(.045,.027,.09),Color("bc7d3e"))
-			ellipsoid(Vector3(side*.17,.29,-.04),Vector3(.045,.10,.25),Color("62655f"))
+			ellipsoid(Vector3(side*.07,.055,.02),Vector3(.045,.027,.09),Color("bc7d3e")).set_meta("limb","left_leg" if side<0 else "right_leg")
+			ellipsoid(Vector3(side*.17,.29,-.04),Vector3(.045,.10,.25),Color("62655f")).set_meta("limb","left_wing" if side<0 else "right_wing")
 	reaction = preload("res://scripts/animal_reaction.gd").new()
 	reaction.animal = self
 	add_child(reaction)
@@ -108,7 +111,8 @@ func _ready() -> void:
 		var volume := SphereShape3D.new(); volume.radius=1
 		extra.shape=volume; extra.position=organ.center; extra.scale=organ.radii*1.1
 		hit.add_child(extra)
-func ellipsoid(p: Vector3,r: Vector3,color: Color) -> void:
+	limbs=preload("res://scripts/animal_limbs.gd").new(); limbs.animal=self; add_child(limbs)
+func ellipsoid(p: Vector3,r: Vector3,color: Color) -> MeshInstance3D:
 	var node := MeshInstance3D.new()
 	var sphere := SphereMesh.new()
 	sphere.radius = 1
@@ -123,6 +127,7 @@ func ellipsoid(p: Vector3,r: Vector3,color: Color) -> void:
 	material.roughness = .95
 	node.material_override = material
 	model.add_child(node)
+	return node
 func damage(amount: float,paid: bool = true) -> void:
 	if dead: return
 	if amount>2: reaction.hit(amount/(70.0 if species=="deer" else 18.0))
@@ -140,6 +145,9 @@ func damage(amount: float,paid: bool = true) -> void:
 			game.wildlife_defeated(self)
 		get_tree().create_timer(35).timeout.connect(queue_free)
 func receive_ballistic_hit(amount: float,point: Vector3,direction: Vector3,zone: String,_force: float,vital_bonus: float = 1.0, penetration: float = .65) -> Dictionary:
+	if limbs.parts.has(zone):
+		wounded_by_hunter=true; frighten(point-direction*3,20)
+		return limbs.hit(zone,amount,_force,point,direction)
 	var local := to_local(point)
 	var ray := (global_basis.inverse()*direction).normalized()
 	var report: Dictionary = preload("res://scripts/wildlife_anatomy.gd").trace(species,local,ray,penetration)
@@ -336,7 +344,7 @@ func _physics_process(delta: float) -> void:
 	var destination: Vector3 = goal if aquatic else (route[0] if not route.is_empty() else position)
 	var direction := destination-position
 	direction.y = 0
-	var speed := (6.0 if species=="deer" else 2.3) if fleeing else .65
+	var speed: float=((6.0 if species=="deer" else 2.3) if fleeing else .65)*limbs.speed_factor()
 	if not aquatic: speed *= game.world.wolf_nav.vegetation_factor(position)
 	if direction.length()>.025:
 		var remaining := direction.length()
@@ -412,7 +420,7 @@ func defensive_deer(delta: float) -> bool:
 	if defensive_left<=0:
 		alerted=false; frighten(position,12); return false
 	var offset: Vector3=defensive_target.position-position; offset.y=0
-	var step:=offset.normalized()*minf(offset.length(),delta*3.8)
+	var step:=offset.normalized()*minf(offset.length(),delta*3.8*limbs.speed_factor())
 	position=game.world.wolf_nav.move_position(position,step.x,step.z)
 	rotation.y=lerp_angle(rotation.y,atan2(offset.x,offset.z),delta*9); update_animation(3.8)
 	if offset.length()<1.6 and defensive_hit<=0:
