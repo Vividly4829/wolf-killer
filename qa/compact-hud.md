@@ -8,3 +8,5 @@
 Validation: `test_compact_hud.gd`, `test_shot_replay.gd`, `test_hunting_combat_polish.gd` and `test_split_session.gd` passed. Native graphical runs of the compact HUD and split session passed; compact/expanded miss reviews and the two-player HUD were visually inspected. Tests use isolated or transient progress profiles.
 
 The rebuilt Windows executable also completed the headless gameplay smoke run with exit code 0 and `VISUAL_QA_COMPLETE`.
+
+Double-tapping keyboard X within 320 ms dismisses the review and enlarged HUD. History survives; held-key repeats are ignored, late hit/path/co-op miss results stay dismissed, and a new shot or explicit single X can reopen the view. Compact HUD and shot replay regression checks pass.

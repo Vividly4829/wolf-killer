@@ -46,6 +46,24 @@ func run() -> void:
 	await capture("expanded-miss")
 	game.hud_detail_left=.01; game._process(.02); game.hud._process(0)
 	check(game.hud_detail_left==0 and game.hud.health_label.scale.x<1,"detail view returns to compact after timeout")
+	review.last_x_press=-1
+	review._unhandled_key_input(key); review._process(0)
+	var held:=key.duplicate(); held.echo=true
+	review._unhandled_key_input(held)
+	check(review.visible,"holding X does not count as a double press")
+	review._unhandled_key_input(key); game.hud._process(0)
+	check(not review.visible and review.remaining==0 and game.hud_detail_left==0,"double X closes the review and compacts HUD immediately")
+	review.record_path(flight.report("MISS / TERRAIN"),review.serial); review._process(0)
+	check(not review.visible and review.remaining==0,"late projectile updates do not reopen a dismissed shot")
+	review._unhandled_key_input(key); review._process(0)
+	check(review.visible and review.history.size()==1,"single X reopens preserved history after dismissing")
+	review.last_x_press=Time.get_ticks_msec()-review.DOUBLE_TAP_MS-1
+	review._unhandled_key_input(key)
+	check(not review.dismissed,"separate X presses continue browsing instead of closing")
+	review.close_review(); review.begin_shot(); review._process(0)
+	check(review.visible and not review.dismissed,"a new shot automatically opens its review")
+	review.close_review(); game.coop.shot_miss(review.serial); review._process(0)
+	check(not review.visible and review.remaining==0,"late co-op miss confirmation respects dismissal")
 	game.restore_campaign()
 	game.queue_free(); await process_frame; await process_frame
 	print("COMPACT_HUD failures=",failures)

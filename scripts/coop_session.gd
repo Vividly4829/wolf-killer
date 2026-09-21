@@ -518,7 +518,7 @@ func projectile_finished(peer: int,serial: int) -> void:
 func shot_miss(serial: int) -> void:
 	if game.shot_review.serial==serial and game.shot_review.reports.is_empty() and game.shot_review.trajectories.is_empty():
 		game.shot_review.caption = "MISS — NO ANIMAL HIT"
-		game.shot_review.remaining = 7
+		if not game.shot_review.dismissed: game.shot_review.remaining = game.shot_review.DISPLAY_SECONDS
 		game.shot_review.queue_redraw()
 func reset_round_earnings() -> void:
 	round_earnings = {1: 0}; earning_slots = {1: 1}

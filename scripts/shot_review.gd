@@ -4,6 +4,9 @@ var game: Node
 var reports: Array[Dictionary] = []
 var trajectories: Array[Dictionary] = []
 var remaining := 0.0
+const DOUBLE_TAP_MS := 320
+var last_x_press := -1
+var dismissed := false
 var serial := 0
 const HISTORY_LIMIT := 32
 var history: Array[Dictionary] = []
@@ -42,11 +45,13 @@ func _ready() -> void:
 		add_child(front); front_views.append(front)
 
 func reset_history() -> void:
+	dismissed=false; last_x_press=-1
 	history.clear(); selected=0; serial=0; remaining=0
 	reports=[]; trajectories=[]
 	replay_restart=true
 	_refresh_models()
 func begin_shot(flying: bool = false) -> void:
+	dismissed=false; last_x_press=-1
 	serial += 1
 	reports=[]; trajectories=[]
 	caption = "PROJECTILE IN FLIGHT" if flying else "MISS — NO ANIMAL HIT"
@@ -99,6 +104,7 @@ func _refresh_models() -> void:
 	queue_redraw()
 func cycle_review() -> void:
 	if not game.mode in ["playing","resting"]: return
+	dismissed=false
 	game.hud_detail_left = 8.0
 	if history.is_empty(): return
 	selected=0 if remaining<=0 else (selected+1)%history.size()
@@ -114,7 +120,8 @@ func record_path(path: Dictionary, shot_serial: int) -> void:
 	if entry.reports.is_empty(): entry.caption=str(path.outcome)
 	if shot_serial==serial: caption=entry.caption
 	if displayed().serial==shot_serial:
-		remaining=DISPLAY_SECONDS; replay_dirty=true; queue_redraw()
+		if not dismissed: remaining=DISPLAY_SECONDS
+		replay_dirty=true; queue_redraw()
 func record(report: Dictionary, shot_serial: int = -1) -> void:
 	if history.is_empty() and shot_serial<0: begin_shot()
 	if shot_serial<0: shot_serial=serial
@@ -131,7 +138,8 @@ func record(report: Dictionary, shot_serial: int = -1) -> void:
 	if hits.size()>1: entry.caption+=" / %d HIT TRACES"%target_reports(hits).size()
 	if shot_serial==serial: caption=entry.caption
 	if displayed().serial==shot_serial:
-			remaining=DISPLAY_SECONDS; _refresh_models()
+		if not dismissed: remaining=DISPLAY_SECONDS
+		_refresh_models()
 func _process(delta: float) -> void:
 	var expanded: bool = game.hud_detail_left > 0.0
 	var split: bool = is_instance_valid(game.split_session)
@@ -151,10 +159,23 @@ func _process(delta: float) -> void:
 	human.visible=not shown.is_empty() and str(shown.back().get("species","")) in ["hunter","raider","werewolf"]
 	xray.visible=not shown.is_empty() and str(shown.back().get("species","wolf"))=="wolf"
 	front_views[0].visible=xray.visible; front_views[1].visible=human.visible; front_views[2].visible=wildlife.visible
+func close_review() -> void:
+	dismissed=true
+	remaining=0.0
+	game.hud_detail_left=0.0
+	hide()
+	replay.tick(0,false)
 func _unhandled_key_input(event: InputEvent) -> void:
 	if game.controller_device>=0: return
 	if event is InputEventKey and event.pressed and not event.echo and event.physical_keycode==KEY_X:
-		cycle_review()
+		if not game.mode in ["playing","resting"]: return
+		var now := Time.get_ticks_msec()
+		if last_x_press>=0 and now-last_x_press<=DOUBLE_TAP_MS:
+			last_x_press=-1
+			close_review()
+		else:
+			last_x_press=now
+			cycle_review()
 func label_at(y: float,text: String,color: Color=Color("cbd9e0"),font_size: int=12) -> void:
 	draw_string(font,Vector2(13,y),text,HORIZONTAL_ALIGNMENT_LEFT,385,font_size,color)
 func _draw() -> void:
@@ -181,7 +202,7 @@ func _draw() -> void:
 		label_at(272,"%s  /  %.1f m to hit" % [shot.get("weapon","SHOT"),shot.get("distance",0.0)])
 		label_at(292,"%.1f base × %.2f range × %.2f placement" % [shot.get("base_damage",0.0),shot.get("range_factor",1.0),shot.multiplier])
 		label_at(314,("%.1f estimated weapon damage" % calculated) if target_review else ("%.1f damage / %.1f lost / %.0f cm tissue" % [calculated,total,float(shot.get("body_depth_m",shot.entry.distance_to(shot.end)))*100]),Color("ffcc8a"),12)
-	label_at(335,"%s older / %d of %d / %s" % ["D-pad down" if game.controller_device>=0 else "X",selected+1,history.size(),"FATAL VITAL HIT" if not hits.is_empty() and hits.back().get("instant_fatal",false) else "combat continues"],Color("91acb9"),10)
+	label_at(335,"%s older / %d of %d / %s" % ["D-pad down" if game.controller_device>=0 else "X browse / double X close",selected+1,history.size(),"FATAL VITAL HIT" if not hits.is_empty() and hits.back().get("instant_fatal",false) else "combat continues"],Color("91acb9"),10)
 	if not hits.is_empty():
 		draw_string(font,Vector2(14,66),"SIDE",HORIZONTAL_ALIGNMENT_LEFT,-1,10,Color("91acb9"))
 		draw_string(font,Vector2(260,66),"FRONT",HORIZONTAL_ALIGNMENT_LEFT,-1,10,Color("91acb9"))
