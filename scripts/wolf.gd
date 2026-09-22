@@ -560,16 +560,18 @@ void fragment() {
 		_style_coat(child)
 
 func damage(amount: float) -> void:
+	_ensure_reaction()
 	if dead:
 		return
 	if reaction and amount>2: reaction.hit(amount/max_health)
 	health = maxf(0.0, health - amount)
+	if reaction: reaction.hold_incapacitated()
 	_hurt_timer = 1.5
 	_hurt_label.text = "%d / %d" % [ceili(health), ceili(max_health)]
 	_hurt_label.visible = true
 	_attack_pose = 0.35
 	_aggression = minf(1.0, _aggression + 0.3)
-	if health > 0.0:
+	if health > max_health*.07:
 		_notify_pack("injured")
 		var player: Node3D = game.get("player") as Node3D
 		if behavior != "maul" and player and _time - _last_flinch > 2.5 and rng.randf() < 0.25:
@@ -1081,10 +1083,8 @@ func _can_bite(target: Vector3) -> bool:
 	return get_world_3d().direct_space_state.intersect_ray(ray).is_empty()
 
 func _physics_process(delta: float) -> void:
-	if not reaction and is_instance_valid(model):
-		reaction = preload("res://scripts/animal_reaction.gd").new()
-		reaction.animal = self
-		add_child(reaction)
+	_ensure_reaction()
+	if reaction and reaction.hold_incapacitated(): return
 	if is_queued_for_deletion() or not is_instance_valid(game):
 		return
 	if dead:
@@ -1335,3 +1335,9 @@ func _hunt_raider(delta: float,hunter: Node3D) -> bool:
 		prey.damage(bite_damage); _attack_cooldown=1.5; _bark()
 	_animate(speed*1.3,distance<1.7)
 	return true
+
+func _ensure_reaction() -> void:
+	if not reaction and is_instance_valid(model):
+		reaction = preload("res://scripts/animal_reaction.gd").new()
+		reaction.animal = self
+		add_child(reaction)

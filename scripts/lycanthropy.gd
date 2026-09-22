@@ -31,7 +31,7 @@ func transformed() -> bool: return infected_wave >= 0
 func empowered() -> bool:
 	return infected_wave >= 0 and game.level > (floori(infected_wave / 5.0) + 1) * 5
 func maximum_health() -> float:
-	return (200.0 if empowered() else 100.0) * (.7 if psychedelic else 1.0)
+	return (200.0 if empowered() else 100.0) * (.7 if psychedelic else 1.0) * (game.rituals.factor("health") if game.rituals else 1.0)
 func blur_amount() -> float: return 0.0
 func consume() -> void:
 	psychedelic = true

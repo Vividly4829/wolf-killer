@@ -785,7 +785,7 @@ func _draw_map() -> void:
 		draw_rect(Rect2(shop - Vector2(3, 3), Vector2(6, 6)), GOLD)
 	for animal in game.radar_animals():
 		var point: Vector2 = _map_point(animal.position).clamp(Vector2(1068,31),Vector2(1242,197))
-		if game.affliction.psychedelic: preload("res://scripts/radar_icons.gd").icon(self,animal,point,game.radar_color(animal))
+		if game.rituals.all_radar(): preload("res://scripts/radar_icons.gd").icon(self,animal,point,game.radar_color(animal))
 		else: draw_circle(point,3.2,game.radar_color(animal))
 	for target in game.objective_targets():
 		var marker := _map_point(target.position).clamp(Vector2(1064,27),Vector2(1246,201))
@@ -800,7 +800,7 @@ func _draw_map() -> void:
 	var forward: Vector3 = -game.player.camera.global_basis.z
 	draw_line(pos, pos + Vector2(forward.x, forward.z).normalized() * 10, PAPER, 2, true)
 	draw_rect(Rect2(1060,208,190,33),Color(.025,.045,.06,.85))
-	draw_string(body_font, Vector2(1067, 220), "ALL ANIMALS / species icons" if game.affliction.psychedelic else "75 m: RED hostile / BLUE panic", HORIZONTAL_ALIGNMENT_LEFT, 182, 10, Color("d4e0e5"))
+	draw_string(body_font, Vector2(1067, 220), "ALL ANIMALS / species icons" if game.rituals.all_radar() else "75 m: RED hostile / BLUE panic", HORIZONTAL_ALIGNMENT_LEFT, 182, 10, Color("d4e0e5"))
 	draw_string(body_font, Vector2(1067, 234), "PINK calm / rings: mission targets", HORIZONTAL_ALIGNMENT_LEFT, 182, 10, Color("d4e0e5"))
 
 func _victory() -> void:

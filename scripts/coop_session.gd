@@ -194,7 +194,9 @@ func wake_player(wave: int,season: int,hour: int,blood: bool,spawn: Vector3,yaw:
 	local_yaw = yaw
 	game.level = wave
 	game.affliction.psychedelic = false
-	if not recovery: game.affliction.infected_wave = -1
+	if not recovery:
+		game.affliction.infected_wave = -1
+		game.rituals.clear()
 	game.health = game.maximum_health()
 	game.player.clear_injuries()
 	game.player.reset_at(spawn)
@@ -235,6 +237,7 @@ func host_started() -> void:
 	game.player._update_rotation()
 	if is_instance_valid(local_area): local_area.collision_layer = 2
 	for id in avatars:
+		avatars[id].remove_meta("ritual_boons")
 		avatars[id].remove_meta("infected_wave")
 		avatars[id].set_beast(false)
 		avatars[id].remove_meta("psychedelic")
@@ -474,6 +477,9 @@ func shoot(origin: Vector3,direction: Vector3,weapon: int,serial: int,secondary:
 	if avatar.get_meta("sprinting",false) or avatar.health<=0 or game.world.is_safe_position(avatar.position) or origin.distance_to(avatar.position)>2.3 or direction.length()<.9: return
 	var spec: Dictionary = preload("res://scripts/weapon_catalog.gd").secondary_weapon() if weapon==9 and secondary else preload("res://scripts/weapon_catalog.gd").weapon(weapon)
 	if clock-float(last_shot.get(id,-100)) < float(spec.interval)*.9: return
+	if game.rituals.tasks.has(id): return
+	spec.damage *= game.rituals.factor("damage",id)
+	spec.spread *= game.rituals.factor("accuracy",id)
 	last_shot[id] = clock
 	shooter = id
 	current_serial = serial
@@ -503,7 +509,7 @@ func friendly_hit(id: int,amount: float) -> float:
 		return before-game.health
 	elif avatars.has(id) and not game.world.is_safe_position(avatars[id].position):
 		var before: float = avatars[id].health
-		avatars[id].health = maxf(0,avatars[id].health-amount)
+		avatars[id].health = maxf(0,avatars[id].health-amount*game.rituals.factor("resistance",id))
 		send_to(id,"hurt",[amount])
 		return before-avatars[id].health
 	return 0
@@ -625,7 +631,7 @@ func grant_loot(weapon: int) -> void:
 
 func avatar_maximum(avatar: Node3D) -> float:
 	var wave: int = avatar.get_meta("infected_wave",-1)
-	return (200.0 if wave>=0 and game.level>(floori(wave/5.0)+1)*5 else 100.0) * (.7 if avatar.get_meta("psychedelic",false) else 1.0)
+	return (200.0 if wave>=0 and game.level>(floori(wave/5.0)+1)*5 else 100.0) * (.7 if avatar.get_meta("psychedelic",false) else 1.0) * game.rituals.factor("health",avatar.peer_id)
 
 func any_living() -> bool:
 	if game.health>0: return true
@@ -727,9 +733,11 @@ func quick_throw_shot(origin: Vector3,direction: Vector3,weapon: int,serial: int
 	if not avatars.has(id) or avatars[id].health<=0 or game.world.is_safe_position(avatars[id].position): return
 	if avatars[id].get_meta("sprinting",false): return
 	if origin.distance_to(avatars[id].position)>3 or clock-float(last_quick_throw.get(id,-100))<.22: return
+	if game.rituals.tasks.has(id): return
 	last_quick_throw[id]=clock
 	var bolt=preload("res://scripts/crossbow_bolt.gd").new(); game.add_child(bolt)
-	bolt.launch(game,origin+direction.normalized()*.24,direction.normalized(),preload("res://scripts/weapon_catalog.gd").weapon(weapon))
+	var spec: Dictionary=preload("res://scripts/weapon_catalog.gd").weapon(weapon); spec.damage*=game.rituals.factor("damage",id)
+	bolt.launch(game,origin+direction.normalized()*.24,direction.normalized(),spec)
 	bolt.shooter_peer=id; bolt.review_serial=serial
 
 @rpc("authority","call_remote","unreliable")
@@ -774,3 +782,20 @@ func flame_effect(a: Vector3,b: Vector3) -> void:
 	var gradient := Gradient.new(); gradient.set_color(0,Color(1,.8,.1,.9)); gradient.set_color(1,Color(.4,.07,.02,0)); particles.color_ramp=gradient
 	particles.material_override=game.combat_fx.material(Color(1,.6,.1,.7),true)
 	particles.emitting=true
+
+@rpc("any_peer","reliable")
+func ritual_request(id: int) -> void:
+	if server(): game.rituals.start(maxi(1,sender_id()),id)
+@rpc("any_peer","reliable")
+func ritual_cancel() -> void:
+	if server(): game.rituals.cancel(maxi(1,sender_id()))
+@rpc("authority","reliable")
+func ritual_started(species: String) -> void: game.rituals.started(species)
+@rpc("authority","reliable")
+func ritual_ended(success: bool) -> void: game.rituals.ended(success)
+@rpc("authority","reliable")
+func ritual_boon(species: String,expiry: int) -> void: game.rituals.grant(species,expiry)
+@rpc("authority","reliable")
+func ritual_visual(point: Vector3,peer: int) -> void: game.rituals.visual(point,peer)
+@rpc("authority","reliable")
+func ritual_visual_end(peer: int) -> void: game.rituals.stop_visual(peer)

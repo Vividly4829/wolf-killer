@@ -176,10 +176,10 @@ func tick_injuries(delta: float) -> float:
 	return bleeding_rate * elapsed
 
 func get_reload_multiplier() -> float:
-	return 1.0 + clampf(arm_injury, 0.0, 1.0) * 0.65
+	return (1.0 + clampf(arm_injury, 0.0, 1.0) * 0.65) * game.rituals.factor("reload")
 
 func get_aim_spread_multiplier() -> float:
-	return (4.0 if is_sprinting else 1.0) + clampf(arm_injury, 0.0, 1.0) * 1.5
+	return ((4.0 if is_sprinting else 1.0) + clampf(arm_injury, 0.0, 1.0) * 1.5) * game.rituals.factor("accuracy")
 
 func get_injury_summary() -> String:
 	var injuries := PackedStringArray()
@@ -195,7 +195,7 @@ func get_injury_summary() -> String:
 
 func get_noise_level() -> float:
 	var pulse := _noise_pulse if _noise_pulse_left > 0.0 else 0.0
-	return clampf(maxf(maxf(_movement_noise, pulse), 0.85 if _struggle_active else 0.0), 0.0, 1.0)
+	return clampf(maxf(maxf(_movement_noise, pulse), 0.85 if _struggle_active else 0.0), 0.0, 1.0) * game.rituals.factor("noise")
 
 func get_visibility() -> float:
 	if _jump_height > 0.04 or _struggle_active:
@@ -303,6 +303,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			game.call("fire_weapon")
 
 func _physics_process(delta: float) -> void:
+	if is_instance_valid(game) and game.rituals and game.rituals.channeling():
+		_velocity=Vector2.ZERO; is_sprinting=false; return
 	if is_instance_valid(game) and controller_device < 0 and _fire_trigger_down and _weapon_spec().get("automatic",false): game.fire_weapon()
 	if controller_device>=0: poll_controller(delta)
 	if game.mode in ["shop","paused","waiting"]: return
@@ -330,12 +332,12 @@ func _physics_process(delta: float) -> void:
 	is_sprinting = sprinting
 	aiming = aiming and not sprinting
 	if sprinting: _aim = 0.0
-	stamina = maxf(0.0, stamina - delta * 18.0 * (1.0 + leg_injury * 0.4)) if sprinting else minf(MAX_STAMINA, stamina + delta * 39.0 * (.38 if game.campaign and game.campaign.fever else 1.0) * (1.0 - leg_injury * 0.2))
+	stamina = maxf(0.0, stamina - delta * 18.0 * game.rituals.factor("stamina") * (1.0 + leg_injury * 0.4)) if sprinting else minf(MAX_STAMINA, stamina + delta * 39.0 * (.38 if game.campaign and game.campaign.fever else 1.0) * (1.0 - leg_injury * 0.2))
 	var speed: float = (SPRINT_SPEED if sprinting else WALK_SPEED) * (1.0 - leg_injury * (0.45 if sprinting else 0.38))
 	if aiming:
 		speed = minf(speed, 1.65 * (1.0 - leg_injury * 0.3))
 	if is_crouching:
-		speed = 1.25 * (1.0 - leg_injury * 0.3)
+		speed = 1.25 * game.rituals.factor("sneak") * (1.0 - leg_injury * 0.3)
 	speed *= supernatural_speed
 	if nav.has_method("vegetation_factor"): speed *= nav.call("vegetation_factor",position)
 	var forward := Vector3(-sin(yaw), 0.0, -cos(yaw))

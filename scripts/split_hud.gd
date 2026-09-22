@@ -48,7 +48,7 @@ func _draw() -> void:
 		if outline.size()>2: draw_colored_polygon(outline,Color("364647"))
 	for animal in game.radar_animals():
 		var marker:=Vector2(1105+(animal.position.x+230)*.35,12+(animal.position.z+210)*.24).clamp(Vector2(1104,12),Vector2(1266,110))
-		if game.affliction.psychedelic: preload("res://scripts/radar_icons.gd").icon(self,animal,marker,game.radar_color(animal))
+		if game.rituals.all_radar(): preload("res://scripts/radar_icons.gd").icon(self,animal,marker,game.radar_color(animal))
 		else: draw_circle(marker,3,game.radar_color(animal))
 	for target in game.objective_targets():
 		var p:=Vector2(1105+(target.position.x+230)*.35,12+(target.position.z+210)*.24).clamp(Vector2(1104,12),Vector2(1266,110))

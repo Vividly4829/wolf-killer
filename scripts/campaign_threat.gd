@@ -116,6 +116,7 @@ func choose_target() -> Node3D:
 			if enemy.species in ["raider","legionary","musketeer"] and not enemy.dead and position.distance_to(enemy.position)<minf(best,18): result=enemy; best=position.distance_to(enemy.position)
 	return result
 func _physics_process(delta: float) -> void:
+	if reaction and reaction.hold_incapacitated(): return
 	if dead or is_queued_for_deletion() or game.coop.client() or not game.is_playing(): return
 	if species in ["raider","legionary","musketeer"]: model.get_child(0).set_motion(2.8 if not route.is_empty() else 0,false,alerted,species=="legionary" and cooldown>.85)
 	voice_left=maxf(0,voice_left-delta)
@@ -220,6 +221,7 @@ func damage(amount: float,reward_hunter: bool=false) -> void:
 	if dead: return
 	if amount>2: reaction.hit(amount/max_health)
 	health=maxf(0,health-amount)
+	if reaction: reaction.hold_incapacitated()
 	paid=paid or reward_hunter
 	if health<=0:
 		dead=true; reaction.die()

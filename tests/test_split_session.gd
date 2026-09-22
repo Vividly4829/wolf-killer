@@ -220,6 +220,23 @@ func run() -> void:
 	check(guest.combat_fx.get_children().any(func(n): return str(n.name).begins_with("FlameJet")),"flamethrower effects replicate locally")
 	host.level=12; host.begin_rest(); host.coop.clock+=1; host.coop._process(.2)
 	check(not guest.affliction.psychedelic and guest.health==200 and host.coop.avatars[2].health==200,"next rest clears remote psychedelic penalty and restores transformed health")
+	host.finish_rest(); guest.finish_rest(); host.rituals.set_process(false); guest.rituals.set_process(false)
+	var sacrifice=host.campaign.spawn_threat("bear",host.world.exterior_rally_point,false)
+	sacrifice.set_physics_process(false); sacrifice.position=Vector3(140,80,140); sacrifice.damage(sacrifice.max_health*.95)
+	guest.player.position=Vector3(140,80,142); host.coop.avatars[2].position=guest.player.position
+	host.coop.clock+=1; host.coop._process(.2)
+	var sacrifice_copy=guest.coop.replicas[sacrifice.get_instance_id()]
+	check(sacrifice_copy.reaction.incapacitated(),"incapacitated state reaches controller viewport")
+	await physics_frame; await physics_frame
+	guest.coop.send_to(1,"ritual_request",[sacrifice.get_instance_id()])
+	check(guest.rituals.channeling() and host.rituals.tasks.has(2),"controller starts host-authoritative ritual")
+	host.rituals._process(4.1)
+	check(sacrifice.dead and guest.rituals.has_boon("bear") and not host.rituals.has_boon("bear"),"sacrifice grants boon only to ritual performer")
+	var before_ritual_damage: float=guest.health
+	host.coop.shooter=1; host.coop.friendly_hit(2,10)
+	check(is_equal_approx(guest.health,before_ritual_damage-8) and is_equal_approx(host.coop.avatars[2].health,guest.health),"remote resistance applies exactly once on host and guest")
+	host.coop.clock+=1; host.coop._process(.2)
+	check(sacrifice_copy.dead,"sacrificed victim is dead on both viewports")
 	for game in session.games:
 		game.coop.leave(); set_multiplayer(null,game.get_path())
 		for suffix in ["",".bak"]: DirAccess.remove_absolute(ProjectSettings.globalize_path(game.progress.save_path+suffix))

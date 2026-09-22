@@ -17,6 +17,7 @@ const WEAPONS: Array[Dictionary] = WeaponCatalog.WEAPONS
 
 var controller_device := -1
 var split_session: Node
+var rituals: Node
 var mushrooms: Node3D
 var combat_fx: Node3D
 var world: Node3D
@@ -92,7 +93,9 @@ var campaign: Node
 var coop: Node
 
 func weapon_spec() -> Dictionary:
-	return WeaponCatalog.secondary_weapon() if current_weapon == 9 and lemat_secondary else WeaponCatalog.weapon(current_weapon)
+	var spec: Dictionary=WeaponCatalog.secondary_weapon() if current_weapon == 9 and lemat_secondary else WeaponCatalog.weapon(current_weapon)
+	if rituals: spec.damage *= rituals.factor("damage")
+	return spec
 
 func current_ammo() -> int:
 	return lemat_shot_ammo if current_weapon == 9 and lemat_secondary else ammo[current_weapon]
@@ -170,6 +173,7 @@ func _ready() -> void:
 	affliction = preload("res://scripts/lycanthropy.gd").new()
 	affliction.game = self
 	add_child(affliction)
+	rituals=preload("res://scripts/dark_ritual.gd").new(); rituals.game=self; add_child(rituals)
 	mushrooms = preload("res://scripts/mushrooms.gd").new(); mushrooms.game = self; add_child(mushrooms)
 	var canvas := CanvasLayer.new()
 	add_child(canvas)
@@ -351,6 +355,7 @@ func start_run(sandbox: bool = false, use_menu_settings: bool = false) -> void:
 	if affliction:
 		affliction.infected_wave = -1
 		affliction.psychedelic = false
+	if rituals: rituals.clear()
 	for animal in nodes_in_group("wildlife"): animal.queue_free()
 	if is_instance_valid(coop) and coop.client() and mode in ["dead","victory"]:
 		coop.send_to(1,"restart_run",[])
@@ -665,6 +670,7 @@ func get_focused_wolf_text() -> String:
 	return str(wolf.get_identification()) if wolf.has_method("get_identification") else ""
 
 func quick_throw() -> bool:
+	if rituals and rituals.channeling(): return false
 	if player.is_sprinting: return false
 	if not is_playing() or is_struggling() or is_player_safe() or bandage_left>0 or quick_throw_left>0: return false
 	_save_current_magazine()
@@ -679,7 +685,7 @@ func quick_throw() -> bool:
 	if int(copy_magazines[best].loaded)>0: copy_magazines[best].loaded-=1
 	else: reserve_ammo[id]-=1
 	if best==current_slot: ammo[id]=int(copy_magazines[best].loaded)
-	var spec:=WeaponCatalog.weapon(id); spec.spread=float(spec.spread)*.65
+	var spec:=WeaponCatalog.weapon(id); spec.damage*=rituals.factor("damage"); spec.spread=float(spec.spread)*.65
 	quick_throw_left=.24
 	shot_review.begin_shot(true)
 	var origin: Vector3=player.camera.global_position
@@ -693,6 +699,7 @@ func quick_throw() -> bool:
 	return true
 
 func fire_weapon() -> void:
+	if rituals and rituals.channeling(): return
 	if player.is_sprinting: return
 	if not free_play and not progress.owned.has(current_weapon):
 		show_notice("Used up. Buy another at the store.",3)
@@ -961,6 +968,10 @@ func receive_gunshot(amount: float) -> void:
 func _apply_health_damage(amount: float, impact: bool = true) -> void:
 	if not is_playing() or health <= 0.0:
 		return
+	amount *= rituals.factor("resistance") if rituals else 1.0
+	if rituals and rituals.channeling() and amount>0:
+		if coop.client(): coop.send_to(1,"ritual_cancel",[])
+		else: rituals.cancel(1)
 	health = maxf(0, health - amount)
 	if impact:
 		damage_flash = 0.55
@@ -1008,7 +1019,7 @@ func _update_struggle(delta: float) -> void:
 	var fighting: bool = player.fight_held()
 	if fighting:
 		var resistance: float = struggle_wolf.get_struggle_resistance()
-		struggle_progress = minf(1.0, struggle_progress + delta * 0.29 / ((1.0 + player.arm_injury * 0.25) * resistance))
+		struggle_progress = minf(1.0, struggle_progress + delta * 0.29 * rituals.factor("struggle") / ((1.0 + player.arm_injury * 0.25) * resistance))
 		player.stamina = maxf(0.0, player.stamina - delta * 17.0)
 	else:
 		struggle_progress = maxf(0.0, struggle_progress - delta * 0.06)
@@ -1048,6 +1059,9 @@ func use_bandage() -> void:
 func interaction_prompt() -> String:
 	if health<=0 or is_struggling(): return ""
 	var key := "Y" if controller_device>=0 else "E"
+	if rituals.channeling(): return "DARK SACRIFICE / Hold still"
+	var offering: Node3D=rituals.nearest()
+	if offering: return "[ %s ] SACRIFICE %s / %s" % [key,rituals.kind(offering).to_upper(),rituals.BOONS[rituals.kind(offering)].name]
 	if mushrooms.nearby() >= 0: return "[ %s ] EAT AMANITA MUSCARIA / PSYCHEDELIC (-30%% MAX HP)" % key
 	if campaign.running:
 		var mission: String=campaign.prompt()
@@ -1076,6 +1090,13 @@ func drink_coffee() -> void:
 	else: coop.serve_coffee(1,cabin)
 
 func interact_shop() -> void:
+	if rituals.channeling(): return
+	if is_playing() and health>0 and not is_struggling():
+		var offering: Node3D=rituals.nearest()
+		if offering:
+			if coop.client(): coop.send_to(1,"ritual_request",[rituals.target_id(offering)])
+			else: rituals.start(1,offering.get_instance_id())
+			return
 	if is_playing() and not is_struggling() and mushrooms.nearby() >= 0:
 		var id: int = mushrooms.nearby()
 		if coop.client(): coop.send_to(1,"eat_mushroom",[id])
@@ -1309,7 +1330,7 @@ func radar_animals() -> Array[Node3D]:
 	if coop.client(): candidates.append_array(coop.replicas.values())
 	for animal in candidates:
 		if not is_instance_valid(animal) or animal.is_queued_for_deletion() or animal.dead or found.has(animal): continue
-		if affliction.psychedelic or animal.position.distance_to(player.position)<=75: found.append(animal)
+		if rituals.all_radar() or animal.position.distance_to(player.position)<=75: found.append(animal)
 	return found
 
 func radar_color(animal: Node3D) -> Color:

@@ -132,6 +132,7 @@ func damage(amount: float,paid: bool = true) -> void:
 	if dead: return
 	if amount>2: reaction.hit(amount/(70.0 if species=="deer" else 18.0))
 	health = maxf(0,health-amount)
+	if reaction: reaction.hold_incapacitated()
 	if health<=0:
 		dead = true
 		for node in get_children():
@@ -289,6 +290,7 @@ func separation() -> Vector3:
 	return push.limit_length(1.2)
 
 func _physics_process(delta: float) -> void:
+	if reaction and reaction.hold_incapacitated(): return
 	if dead or is_queued_for_deletion() or not game.is_playing(): return
 	var was_fleeing:=fear_left>0
 	timer -= delta
