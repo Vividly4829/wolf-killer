@@ -784,7 +784,9 @@ func _draw_map() -> void:
 		var shop: Vector2 = _map_point(point)
 		draw_rect(Rect2(shop - Vector2(3, 3), Vector2(6, 6)), GOLD)
 	for animal in game.radar_animals():
-		draw_circle(_map_point(animal.position).clamp(Vector2(1064,27),Vector2(1246,201)),3.2,game.radar_color(animal))
+		var point: Vector2 = _map_point(animal.position).clamp(Vector2(1068,31),Vector2(1242,197))
+		if game.affliction.psychedelic: preload("res://scripts/radar_icons.gd").icon(self,animal,point,game.radar_color(animal))
+		else: draw_circle(point,3.2,game.radar_color(animal))
 	for target in game.objective_targets():
 		var marker := _map_point(target.position).clamp(Vector2(1064,27),Vector2(1246,201))
 		if target.position.distance_to(game.player.position)>75: draw_circle(marker,3.2,game.radar_color(target))
@@ -798,7 +800,7 @@ func _draw_map() -> void:
 	var forward: Vector3 = -game.player.camera.global_basis.z
 	draw_line(pos, pos + Vector2(forward.x, forward.z).normalized() * 10, PAPER, 2, true)
 	draw_rect(Rect2(1060,208,190,33),Color(.025,.045,.06,.85))
-	draw_string(body_font, Vector2(1067, 220), "75 m: RED hostile / BLUE panic", HORIZONTAL_ALIGNMENT_LEFT, 182, 10, Color("d4e0e5"))
+	draw_string(body_font, Vector2(1067, 220), "ALL ANIMALS / species icons" if game.affliction.psychedelic else "75 m: RED hostile / BLUE panic", HORIZONTAL_ALIGNMENT_LEFT, 182, 10, Color("d4e0e5"))
 	draw_string(body_font, Vector2(1067, 234), "PINK calm / rings: mission targets", HORIZONTAL_ALIGNMENT_LEFT, 182, 10, Color("d4e0e5"))
 
 func _victory() -> void:
@@ -863,6 +865,7 @@ func _weapon_stats() -> void:
 		var note := "%s · Penetration %.2f m · Noise %.0f m" % [data.ammo_type, data.penetration, data.noise_radius]
 		if explosive: note = "Blast radius %.0f m · %s · Friendly fire" % [data.blast_radius, "Impact fuse" if data.get("impact_fuse", false) else ("Fuse %.1f s" % data.fuse)]
 		if per_round: note += " · One per round, replenished free; kept after throwing"
+		elif data.get("flame",false): note = "Hold fire · Short flame cone · Walls block fire · Fuel refills at rest · Friendly fire"
 		elif data.get("laser", false): note += " · Crank to recharge; no spare ammunition needed"
 		elif index == 9:
 			var secondary: Dictionary = game.WeaponCatalog.secondary_weapon()

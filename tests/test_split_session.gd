@@ -204,6 +204,22 @@ func run() -> void:
 	check(guest.combat_fx.shots.has("split-fx-test"),"smoky firearm trails replicate to the other viewport")
 	host.coop.send_to(2,"surface_impact",[soldier.position,Vector3.UP,"wood"])
 	check(guest.combat_fx.get_children().any(func(n):return str(n.name).begins_with("BulletScar")),"surface impacts replicate to the other viewport")
+	host.level=11; guest.level=11
+	host.affliction.infected_wave=5; guest.affliction.infected_wave=5
+	host.coop.avatars[2].set_meta("infected_wave",5)
+	host.begin_rest(); host.coop.clock+=1; host.coop._process(.2)
+	check(guest.health==200 and host.health==200,"both infected players retain doubled health after next werewolf round")
+	host.finish_rest(); guest.finish_rest()
+	guest.player.position=host.mushrooms.spots[0]; host.coop.avatars[2].position=guest.player.position
+	guest.coop.send_to(1,"eat_mushroom",[0])
+	check(guest.affliction.psychedelic and not host.affliction.psychedelic and is_equal_approx(guest.health,140),"controller mushroom consumption affects only that player and stacks with lycanthropy")
+	check(is_equal_approx(host.coop.avatar_maximum(host.coop.avatars[2]),140),"host applies psychedelic maximum to remote hunter")
+	host.coop.clock+=1; host.coop._process(.2)
+	check(guest.coop.avatars[1].character.beast,"infected host appearance replicates to other viewport")
+	host.coop.send_to(2,"flame_effect",[host.player.position+Vector3.UP,host.player.position+Vector3.UP+Vector3.FORWARD*6])
+	check(guest.combat_fx.get_children().any(func(n): return str(n.name).begins_with("FlameJet")),"flamethrower effects replicate locally")
+	host.level=12; host.begin_rest(); host.coop.clock+=1; host.coop._process(.2)
+	check(not guest.affliction.psychedelic and guest.health==200 and host.coop.avatars[2].health==200,"next rest clears remote psychedelic penalty and restores transformed health")
 	for game in session.games:
 		game.coop.leave(); set_multiplayer(null,game.get_path())
 		for suffix in ["",".bak"]: DirAccess.remove_absolute(ProjectSettings.globalize_path(game.progress.save_path+suffix))

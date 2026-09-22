@@ -397,7 +397,7 @@ The six mapped neighboring cabins/outbuildings have game-only open entrances, in
 
 Original procedural ambient music uses sparse bowed tones and struck notes, blending gradually into a dissonant tension layer when any living wolf is alerted. Chase growls, fabric/flesh tearing Foley and a stylized synthesized pain cry accompany bites. No commercial game music or recorded actor performance is included.
 
-A werewolf bite causes lycanthropy. The bite wave counts as incubation round one: blur increases through five consecutive rounds. Starting at the next fifth-wave full moon, the afflicted hunter has **200 maximum HP**, **50% more movement speed** and red-tinted clear vision. Ordinary rounds after incubation restore normal vision, 100 maximum HP and normal movement. Bed recovery and medicine do not cure the infection; restarting the run clears it. The HUD shows incubation, dormant and full-moon states. In co-op, the curse belongs to the hunter bitten.
+A werewolf bite causes lycanthropy: **50% faster movement immediately**, persistent red-tinted vision and no blur. After completing the next fifth-wave werewolf round, maximum health becomes **200 permanently for that run**, including ordinary rounds. Example: bitten on wave 5, survive wave 10, wake on wave 11 with 200 HP. The condition avatar and co-op character become werewolf-like. Bed recovery and medicine do not cure lycanthropy; restarting the run clears it. The curse belongs to the hunter bitten.
 
 Current checks and screenshots: [survival expansion QA](qa/survival-expansion/README.md).
 
@@ -562,10 +562,17 @@ Validation: `tests/test_combat_world_fx.gd`, `tests/test_hunting_combat_polish.g
 
 ## Weapon economy and field guide
 
-All 35 purchase prices now sit between 25 and 1,000 credits. The spear is the cheapest at 25; the drum Luger is the most expensive at 1,000. Prices weigh practical reach, accuracy, capacity, reload downtime, stealth and crowd control. The starter musket is still granted at the beginning of a run; extra copies cost 125.
+All 36 purchase prices now sit between 25 and 1,000 credits. The spear is the cheapest at 25; the drum Luger is the most expensive at 1,000. Prices weigh practical reach, accuracy, capacity, reload downtime, stealth and crowd control. The starter musket is still granted at the beginning of a run; extra copies cost 125.
 
 Budget fieldcraft and simple firearms cost 25–175; quiet precision weapons and revolvers occupy the middle; repeaters, heavy precision rifles and dual weapons cost more. Recurring explosives cost 275 for a grenade and 425 for dynamite. The launcher costs 900 and the rechargeable aether musket 950.
 
 Grenades and dynamite remain owned after use, each with one carried charge and no reserve. They restore one charge free at the next round's wake, including co-op players. Switching, re-equipping or buying ammunition does not replenish them mid-round. Death still loses weapons. Free Play allows reloading them for repeated practice.
 
-The main menu's **Weapon Stats & Prices** opens a five-page guide sorted by price. It reads live catalogue values for price, base damage/pellets, effective and maximum range, loaded/spare ammunition, actual reload time, shot interval, spread, penetration, noise and blast details. Use the page buttons or controller D-pad/LB/RB; Escape or controller B returns to the menu without discarding expedition settings.
+The main menu's **Weapon Stats & Prices** opens a six-page guide sorted by price. It reads live catalogue values for price, base damage/pellets, effective and maximum range, loaded/spare ammunition, actual reload time, shot interval, spread, penetration, noise and blast details. Use the page buttons or controller D-pad/LB/RB; Escape or controller B returns to the menu without discarding expedition settings.
+
+
+## Psychedelic mushrooms and primitive fire siphon
+
+Small red Amanita muscaria clusters with cream spots occasionally grow on navigable terrain. Approach and press **E / controller Y** to consume one. Each player can consume a cluster once per round; another player's pickup does not take yours away. **Psychedelic** lasts until the next cabin rest: highly vivid colours, species silhouettes for all living animals on both radar layouts, and **30% lower maximum HP**, with current HP capped immediately. Additional mushrooms do not compound the penalty. It stacks with lycanthropy: 70 HP before the permanent upgrade, 140 HP afterwards. Rest clears psychedelic and restores the usual maximum. The mushroom effect is a fictional game mechanic.
+
+The **Primitive Fire Siphon** is a fictional brass, hand-pumped flame weapon costing **850 credits**. Hold left mouse / right trigger for flame pulses: 3 traces × 7 base damage every 0.15 seconds, 5 m effective reach, 10 m maximum, 60 fuel pulses loaded plus 120 reserve, and a 5-second reload. Fuel replenishes at round rest. Flames stop at walls, can burn other hunters, and cannot be fired indoors or while sprinting. The weapon has an original model, orange flame particles and a synthesised fire roar. It is available in stores, Free Play and the main-menu stat guide.

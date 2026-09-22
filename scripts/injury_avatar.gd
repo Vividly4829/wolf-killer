@@ -20,6 +20,7 @@ func status_lines() -> Array[String]:
 	if p.concussion>0: result.append("CONCUSSION")
 	if game.campaign.fever: result.append("FEVER")
 	if game.affliction.infected_wave>=0: result.append("LYCANTHROPY")
+	if game.affliction.psychedelic: result.append("PSYCHEDELIC")
 	if result.is_empty(): result.append("HEALTHY")
 	return result
 func _draw() -> void:
@@ -29,8 +30,14 @@ func _draw() -> void:
 	draw_string(font,Vector2(12,18),"FIELD CONDITION",HORIZONTAL_ALIGNMENT_LEFT,220,11,OK)
 	var p=game.player
 	draw_circle(Vector2(51,44),12,region(p.concussion))
-	draw_line(Vector2(35,34),Vector2(68,34),OK,4,true)
-	draw_line(Vector2(42,28),Vector2(60,28),OK,7,true)
+	if game.affliction.transformed():
+		for side in [-1,1]:
+			draw_colored_polygon(PackedVector2Array([Vector2(51+side*7,36),Vector2(51+side*14,22),Vector2(51+side*16,43)]),OK)
+			draw_circle(Vector2(51+side*5,42),2,Color("ff643b"))
+		draw_colored_polygon(PackedVector2Array([Vector2(42,48),Vector2(60,48),Vector2(51,60)]),OK)
+	else:
+		draw_line(Vector2(35,34),Vector2(68,34),OK,4,true)
+		draw_line(Vector2(42,28),Vector2(60,28),OK,7,true)
 	line(Vector2(51,62),Vector2(51,98),region(p.bleeding_rate),23)
 	for side in [-1,1]:
 		line(Vector2(51+side*16,63),Vector2(51+side*23,85),region(p.arm_injury),8)

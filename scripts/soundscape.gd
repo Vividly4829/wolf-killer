@@ -32,6 +32,7 @@ var flesh_index := 0
 var last_flesh_variant := -1
 
 func _ready() -> void:
+	samples["flame"] = load("res://assets/audio/fire_siphon.wav")
 	silent = DisplayServer.get_name() == "headless"
 	# One shared limiter also catches simultaneous local/co-op blasts without
 	# flattening the ordinary mix. Do not install another for the second viewport.

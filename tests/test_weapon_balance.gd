@@ -24,7 +24,7 @@ func run() -> void:
 	game.hud.open_weapon_stats()
 	check(game.mode == "weapon_stats", "main menu opens field guide")
 	var shown: Array[int] = []
-	for page in 5:
+	for page in ceili(Catalog.WEAPONS.size()/7.0):
 		for child in game.hud.overlay.get_children():
 			if str(child.name).begins_with("WeaponStatsRow"):
 				var index: int = str(child.name).trim_prefix("WeaponStatsRow").to_int()
@@ -35,7 +35,7 @@ func run() -> void:
 			await process_frame; await RenderingServer.frame_post_draw
 			root.get_texture().get_image().save_png("res://qa/weapon-guide-%d.png" % page)
 		game.player.controller_button(JOY_BUTTON_DPAD_RIGHT)
-	check(shown.size() == 35 and game.hud.stats_page == 0, "all 35 weapons reachable; controller paging wraps")
+	check(shown.size() == Catalog.WEAPONS.size() and game.hud.stats_page == 0, "all weapons reachable; controller paging wraps")
 	game.player.controller_button(JOY_BUTTON_B)
 	check(game.mode == "menu" and game.menu_start_level == 8 and game.menu_start_money == 456, "back preserves expedition settings")
 	game.progress.owned.assign([0,24,25]); game.current_slot = 0; game.current_weapon = 0

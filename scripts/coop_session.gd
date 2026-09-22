@@ -183,6 +183,7 @@ func spawn_yaw(id: int) -> float:
 	var p := spawn_point(id)
 	return atan2(p.x-float(house.door[0]),p.z-float(house.door[2]))
 func wake_remote(id: int,recovery: bool) -> void:
+	if avatars.has(id): avatars[id].remove_meta("psychedelic")
 	send_to(id,"wake_player",[game.level,game.world.weather.season,game.world.weather.hour,game.world.weather.blood_moon,spawn_point(id),spawn_yaw(id),generation,recovery])
 @rpc("authority","reliable")
 func wake_player(wave: int,season: int,hour: int,blood: bool,spawn: Vector3,yaw: float,epoch: int,recovery: bool = false) -> void:
@@ -192,6 +193,8 @@ func wake_player(wave: int,season: int,hour: int,blood: bool,spawn: Vector3,yaw:
 	local_spawn = spawn
 	local_yaw = yaw
 	game.level = wave
+	game.affliction.psychedelic = false
+	if not recovery: game.affliction.infected_wave = -1
 	game.health = game.maximum_health()
 	game.player.clear_injuries()
 	game.player.reset_at(spawn)
@@ -233,6 +236,8 @@ func host_started() -> void:
 	if is_instance_valid(local_area): local_area.collision_layer = 2
 	for id in avatars:
 		avatars[id].remove_meta("infected_wave")
+		avatars[id].set_beast(false)
+		avatars[id].remove_meta("psychedelic")
 		avatars[id].health = avatar_maximum(avatars[id])
 		avatars[id].mauling = 0
 		avatars[id].position = spawn_point(id)
@@ -291,13 +296,13 @@ func _process(delta: float) -> void:
 			send_to(1,"pose",[game.player.position,game.player.yaw,game.player.is_crouching,game.player.get_noise_level(),game.health,game.current_weapon,game.player.is_sprinting,generation])
 		return
 	check_team_wipe()
-	var hunters: Array = [{"id":1,"p":game.player.position,"yaw":game.player.yaw,"health":game.health,"weapon":game.current_weapon,"earned":round_earnings.get(1,0),"slot":1}]
+	var hunters: Array = [{"id":1,"p":game.player.position,"yaw":game.player.yaw,"health":game.health,"weapon":game.current_weapon,"earned":round_earnings.get(1,0),"slot":1,"beast":game.affliction.transformed()}]
 	for id in avatars:
 		var avatar = avatars[id]
 		if avatar.mauling!=0:
 			var attacker=instance_from_id(avatar.mauling) if is_instance_id_valid(avatar.mauling) else null
 			if not is_instance_valid(attacker) or attacker.dead or avatar.health<=0 or game.world.is_safe_position(avatar.position): release_remote_maul(id)
-		hunters.append({"id":id,"p":avatar.position,"yaw":avatar.rotation.y,"health":avatar.health,"weapon":maxi(0,avatar.weapon_index),"earned":round_earnings.get(id,0),"slot":int(slots.get(id,1))+1})
+		hunters.append({"id":id,"p":avatar.position,"yaw":avatar.rotation.y,"health":avatar.health,"weapon":maxi(0,avatar.weapon_index),"earned":round_earnings.get(id,0),"slot":int(slots.get(id,1))+1,"beast":avatar.has_meta("infected_wave")})
 	var animals: Array = []
 	for wolf in game.wolves+game.nodes_in_group("wolf_corpses"):
 		animals.append({"id":wolf.get_instance_id(),"limbs":wolf.limbs.snapshot() if wolf.limbs else {},"p":wolf.position,"yaw":wolf.rotation.y,"health":wolf.health,"seed":int(wolf.profile.profile_seed),"boss":wolf.werewolf,"mission":wolf.get_meta("mission",false),"type":"wolf","move":wolf._velocity.length(),"max_health":wolf.max_health,"behavior":wolf.behavior,"injuries":wolf.leg_injuries,"severed":wolf.severed_legs,"side":wolf.reaction.side if wolf.reaction else 1.0,"alerted":wolf.alerted,"dead":wolf.dead,"down":wolf.reaction.down if wolf.reaction else 0.0,"flinch":wolf.reaction.flinch if wolf.reaction else 0.0})
@@ -313,6 +318,7 @@ func _process(delta: float) -> void:
 	if game.level!=previous_wave and game.mode=="resting":
 		generation += 1
 		for id in avatars:
+			avatars[id].remove_meta("psychedelic")
 			avatars[id].health = avatar_maximum(avatars[id])
 			avatars[id].position = spawn_point(id)
 			avatars[id].mauling = 0
@@ -373,6 +379,7 @@ func state(hunters: Array,animals: Array,wave: int,mode: String,waiting: bool,pe
 		avatars[id].visible = hunter.health>0
 		avatars[id].area.collision_layer = 2 if hunter.health>0 else 0
 		avatars[id].equip(int(hunter.weapon))
+		avatars[id].set_beast(hunter.get("beast",false))
 	for id in avatars.keys():
 		if not seen.has(id): avatars[id].queue_free(); avatars.erase(id)
 	seen.clear()
@@ -546,7 +553,8 @@ func grant_money(amount: int) -> void:
 	game.progress.save_progress()
 func begin_remote_maul(wolf: Node3D,avatar: Node3D) -> bool:
 	if avatar.mauling!=0: return false
-	if wolf.werewolf and not avatar.has_meta("infected_wave"): avatar.set_meta("infected_wave",game.level)
+	if wolf.werewolf and not avatar.has_meta("infected_wave"):
+		avatar.set_meta("infected_wave",game.level); avatar.set_beast(true)
 	avatar.mauling = wolf.get_instance_id()
 	send_to(avatar.peer_id,"maul",[wolf.get_instance_id()])
 	return avatar.mauling==wolf.get_instance_id()
@@ -573,7 +581,7 @@ func release_maul() -> void:
 	game.end_wolf_struggle(true)
 
 func broadcast_gunshot(kind: String,point: Vector3,source: int) -> void:
-	if not active or client() or not game.sounds.Gunshots.SAMPLES.has(kind): return
+	if not active or client() or (not game.sounds.Gunshots.SAMPLES.has(kind) and kind != "flame"): return
 	# The shooter has immediate local audio; everyone else hears its world position.
 	if source!=1: game.sounds.play_at(kind,point,-8)
 	for id in connected_peers():
@@ -617,7 +625,7 @@ func grant_loot(weapon: int) -> void:
 
 func avatar_maximum(avatar: Node3D) -> float:
 	var wave: int = avatar.get_meta("infected_wave",-1)
-	return 200.0 if wave>=0 and game.level>=wave+5 and game.level%5==0 else 100.0
+	return (200.0 if wave>=0 and game.level>(floori(wave/5.0)+1)*5 else 100.0) * (.7 if avatar.get_meta("psychedelic",false) else 1.0)
 
 func any_living() -> bool:
 	if game.health>0: return true
@@ -736,3 +744,33 @@ func surface_impact(point: Vector3,normal: Vector3,kind: String) -> void:
 func enemy_muzzle(point: Vector3,direction: Vector3) -> void:
 	game.combat_fx.muzzle(point,direction)
 	game.sounds.play_at("musket",point,-7)
+
+@rpc("any_peer","reliable")
+func eat_mushroom(index: int) -> void:
+	if client(): return
+	var id: int = maxi(1,sender_id()) if active else 1
+	var hunter: Node3D = game.player if id == 1 else avatars.get(id)
+	if not is_instance_valid(hunter) or game.mode not in ["playing","shop"]: return
+	if (game.health if id == 1 else hunter.health) <= 0: return
+	if not game.mushrooms.can_consume(index,id,hunter.position): return
+	game.mushrooms.mark(index,id)
+	if id == 1: game.mushrooms.apply(index)
+	else:
+		hunter.set_meta("psychedelic",true); hunter.health=minf(hunter.health,avatar_maximum(hunter))
+		send_to(id,"mushroom_taken",[index])
+@rpc("authority","reliable")
+func mushroom_taken(index: int) -> void: game.mushrooms.apply(index)
+@rpc("authority","unreliable")
+func flame_effect(a: Vector3,b: Vector3) -> void:
+	if a.distance_squared_to(b)<.001: return
+	var fx: Node3D = game.combat_fx.effect("FlameJet",.4)
+	var particles := CPUParticles3D.new(); fx.add_child(particles); particles.global_position=a
+	particles.amount=18; particles.lifetime=.35; particles.one_shot=true; particles.explosiveness=.1
+	particles.direction=(b-a).normalized(); particles.spread=5; particles.gravity=Vector3(0,1,0)
+	particles.initial_velocity_min=a.distance_to(b)/.35; particles.initial_velocity_max=particles.initial_velocity_min
+	particles.scale_amount_min=.07; particles.scale_amount_max=.19
+	var mesh := SphereMesh.new(); mesh.radius=.65; mesh.height=1.3; mesh.radial_segments=6; mesh.rings=3
+	particles.mesh=mesh
+	var gradient := Gradient.new(); gradient.set_color(0,Color(1,.8,.1,.9)); gradient.set_color(1,Color(.4,.07,.02,0)); particles.color_ramp=gradient
+	particles.material_override=game.combat_fx.material(Color(1,.6,.1,.7),true)
+	particles.emitting=true

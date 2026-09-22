@@ -303,6 +303,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			game.call("fire_weapon")
 
 func _physics_process(delta: float) -> void:
+	if is_instance_valid(game) and controller_device < 0 and _fire_trigger_down and _weapon_spec().get("automatic",false): game.fire_weapon()
 	if controller_device>=0: poll_controller(delta)
 	if game.mode in ["shop","paused","waiting"]: return
 	if camera == null or not enabled or not is_instance_valid(game) or not game.call("is_playing"):
@@ -480,4 +481,4 @@ func poll_controller(delta: float) -> void:
 	if game.mode!="playing": return
 	if look.length()>.15:
 		yaw-=look.x*delta*2.4*(1-_aim*.4); pitch=clampf(pitch-look.y*delta*1.8,-1.48,1.48); _update_rotation()
-	if fire: game.fire_weapon()
+	if fire or (trigger and _weapon_spec().get("automatic",false)): game.fire_weapon()

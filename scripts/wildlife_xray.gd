@@ -70,7 +70,8 @@ func review(reports: Array[Dictionary]) -> void:
 	var beam := MeshInstance3D.new(); var shaft := CylinderMesh.new()
 	shaft.top_radius=.006; shaft.bottom_radius=.006; shaft.height=shot.entry.distance_to(shot.end)
 	beam.mesh=shaft; beam.position=(shot.entry+shot.end)*.5
-	beam.quaternion=Quaternion(Vector3.UP,(shot.end-shot.entry).normalized())
+	if shot.entry.distance_squared_to(shot.end) > .000001: beam.quaternion=Quaternion(Vector3.UP,(shot.end-shot.entry).normalized())
+	else: beam.visible=false
 	beam.material_override=material(Color("ffc977")); scene.add_child(beam)
 	var middle := .94 if deer else (.40 if species=="goose" else (.26 if species=="duck" else .15))
 	camera.size=3.0 if species=="bear" else 2.15 if deer else (1.0 if species=="goose" else .72)

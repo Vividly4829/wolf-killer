@@ -59,3 +59,9 @@ func _process(delta: float) -> void:
 	character.set_motion(rendered_speed,is_crouching,true,mauling!=0)
 	character.set_process(health>0)
 	character.rotation.z=lerp_angle(character.rotation.z,1.4 if health<=0 else 0,1-exp(-delta*6))
+
+func set_beast(value: bool) -> void:
+	if not is_instance_valid(character) or character.beast == value: return
+	character.queue_free()
+	character=preload("res://scripts/field_character.gd").new(); character.beast=value
+	add_child(character)

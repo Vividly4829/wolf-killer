@@ -58,6 +58,7 @@ func build(weapon_index: int) -> Dictionary:
 		31,32: _paired_period()
 		33: _luger()
 		34: _hand_mortar()
+		35: _fire_siphon()
 		_: _rifle()
 	if sight==Vector3.ZERO: sight = muzzle+Vector3(0,.035,0)
 	for key: String in actions:
@@ -766,3 +767,20 @@ func _hand_mortar() -> void:
 	_sights(root,-.55,.17,-.14)
 	for i in 4: _box(root,Vector3(.027,.13+i*.017,-.14),Vector3(.04,.003,.006),"silver")
 	muzzle=Vector3(0,.08,-.57)
+
+func _fire_siphon() -> void:
+	action="muzzle"
+	_stock(-.40)
+	_box(root,Vector3(0,.03,-.13),Vector3(.09,.09,.28),"steel")
+	_barrel(root,-.18,-.65,.08,.037,0,24,"brass")
+	for z in [-.24,-.40,-.56]: _ring(root,Vector3(0,.08,z),.044,.008,"steel")
+	for side in [-1,1]:
+		_cylinder(root,Vector3(side*.105,-.09,-.15),.30,.073,"brass",Vector3.UP)
+		_ring(root,Vector3(side*.105,-.16,-.15),.077,.007,"steel",Vector3.UP)
+		_rod(root,Vector3(side*.105,.065,-.15),Vector3(side*.035,.09,-.42),.012,"black")
+	_cylinder(root,Vector3(.1,.115,-.05),.013,.045,"ivory",Vector3.UP)
+	_rod(root,Vector3(.1,.125,-.05),Vector3(.12,.125,-.08),.003,"red")
+	_guard(root,Vector3(0,-.065,-.07),.04,"steel")
+	_rod(root,Vector3(.035,.04,-.52),Vector3(.035,.035,-.68),.008,"brass")
+	_sights(root,-.60,.135,-.10)
+	muzzle=Vector3(0,.08,-.67)

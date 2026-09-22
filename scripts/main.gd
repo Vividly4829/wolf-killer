@@ -17,6 +17,7 @@ const WEAPONS: Array[Dictionary] = WeaponCatalog.WEAPONS
 
 var controller_device := -1
 var split_session: Node
+var mushrooms: Node3D
 var combat_fx: Node3D
 var world: Node3D
 var player: Node3D
@@ -117,6 +118,8 @@ func _sync_weapon_visual() -> void:
 	if current_weapon in [30,31,32]: player.weapon.set_dual_ammo(current_ammo())
 
 func _replenish_ammunition() -> void:
+	if affliction: affliction.psychedelic = false
+	if mushrooms: mushrooms.regrow(level)
 	ammo = WeaponCatalog.full_magazines()
 	reserve_ammo = WeaponCatalog.full_reserves()
 	for index in WEAPONS.size(): reserve_ammo[index]*=maxi(1,progress.owned.count(index))
@@ -167,6 +170,7 @@ func _ready() -> void:
 	affliction = preload("res://scripts/lycanthropy.gd").new()
 	affliction.game = self
 	add_child(affliction)
+	mushrooms = preload("res://scripts/mushrooms.gd").new(); mushrooms.game = self; add_child(mushrooms)
 	var canvas := CanvasLayer.new()
 	add_child(canvas)
 	hud = HudScript.new()
@@ -344,7 +348,9 @@ func start_run(sandbox: bool = false, use_menu_settings: bool = false) -> void:
 		progress = ProgressScript.new()
 		progress.transient = true
 		progress.owned.assign(range(WEAPONS.size()))
-	if affliction: affliction.infected_wave = -1
+	if affliction:
+		affliction.infected_wave = -1
+		affliction.psychedelic = false
 	for animal in nodes_in_group("wildlife"): animal.queue_free()
 	if is_instance_valid(coop) and coop.client() and mode in ["dead","victory"]:
 		coop.send_to(1,"restart_run",[])
@@ -591,6 +597,7 @@ func begin_rest() -> void:
 	world.weather.wake(level)
 	end_wolf_struggle(false)
 	_clear_projectiles()
+	affliction.psychedelic = false
 	health = maximum_health()
 	player.clear_injuries()
 	_replenish_ammunition()
@@ -743,7 +750,12 @@ func fire_weapon() -> void:
 func fire_ballistic(origin: Vector3,direction: Vector3,weapon: Dictionary,review_serial: int,peer: int,excluded: Array[RID]) -> void:
 	var result: Dictionary=preload("res://scripts/ballistic_trace.gd").cast(get_world_3d().direct_space_state,origin,direction,weapon,excluded)
 	coop.deliver_path(peer,review_serial,result.path)
-	if not weapon.get("laser",false):
+	if weapon.get("flame",false):
+		var nozzle: Vector3 = player.weapon.to_global(player.weapon.muzzle_position) if peer == 1 else origin
+		if peer != 1 and coop.avatars.has(peer): nozzle=coop.avatars[peer].weapon.to_global(coop.avatars[peer].muzzle)
+		coop.flame_effect(nozzle,result.path.points[-1])
+		if coop.active: coop.send_all("flame_effect",[nozzle,result.path.points[-1]])
+	elif not weapon.get("laser",false):
 		var points: PackedVector3Array=result.path.points.duplicate()
 		if peer==1: points[0]=player.weapon.to_global(player.weapon.muzzle_position)
 		elif coop.avatars.has(peer) and is_instance_valid(coop.avatars[peer].weapon): points[0]=coop.avatars[peer].weapon.to_global(coop.avatars[peer].muzzle)
@@ -1036,6 +1048,7 @@ func use_bandage() -> void:
 func interaction_prompt() -> String:
 	if health<=0 or is_struggling(): return ""
 	var key := "Y" if controller_device>=0 else "E"
+	if mushrooms.nearby() >= 0: return "[ %s ] EAT AMANITA MUSCARIA / PSYCHEDELIC (-30%% MAX HP)" % key
 	if campaign.running:
 		var mission: String=campaign.prompt()
 		if not mission.is_empty(): return mission.replace("E / Y",key)
@@ -1063,6 +1076,11 @@ func drink_coffee() -> void:
 	else: coop.serve_coffee(1,cabin)
 
 func interact_shop() -> void:
+	if is_playing() and not is_struggling() and mushrooms.nearby() >= 0:
+		var id: int = mushrooms.nearby()
+		if coop.client(): coop.send_to(1,"eat_mushroom",[id])
+		else: coop.eat_mushroom(id)
+		return
 	if health<=0: return
 	if is_playing() and not is_struggling() and campaign.running:
 		if coop.client():
@@ -1291,7 +1309,7 @@ func radar_animals() -> Array[Node3D]:
 	if coop.client(): candidates.append_array(coop.replicas.values())
 	for animal in candidates:
 		if not is_instance_valid(animal) or animal.is_queued_for_deletion() or animal.dead or found.has(animal): continue
-		if animal.position.distance_to(player.position)<=75: found.append(animal)
+		if affliction.psychedelic or animal.position.distance_to(player.position)<=75: found.append(animal)
 	return found
 
 func radar_color(animal: Node3D) -> Color:
