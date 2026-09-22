@@ -397,7 +397,7 @@ The six mapped neighboring cabins/outbuildings have game-only open entrances, in
 
 Original procedural ambient music uses sparse bowed tones and struck notes, blending gradually into a dissonant tension layer when any living wolf is alerted. Chase growls, fabric/flesh tearing Foley and a stylized synthesized pain cry accompany bites. No commercial game music or recorded actor performance is included.
 
-A werewolf bite causes lycanthropy: **50% faster movement immediately**, persistent red-tinted vision and no blur. After completing the next fifth-wave werewolf round, maximum health becomes **200 permanently for that run**, including ordinary rounds. Example: bitten on wave 5, survive wave 10, wake on wave 11 with 200 HP. The condition avatar and co-op character become werewolf-like. Bed recovery and medicine do not cure lycanthropy; restarting the run clears it. The curse belongs to the hunter bitten.
+A werewolf bite causes lycanthropy: **50% faster movement immediately**, persistent red-tinted vision and temporary blur until the next werewolf round. After completing the next fifth-wave werewolf round, maximum health becomes **200 permanently for that run**, including ordinary rounds. Example: bitten on wave 5, survive wave 10, wake on wave 11 with 200 HP. The condition avatar and co-op character become werewolf-like. Bed recovery and medicine do not cure lycanthropy; restarting the run clears it. The curse belongs to the hunter bitten.
 
 Current checks and screenshots: [survival expansion QA](qa/survival-expansion/README.md).
 
@@ -503,7 +503,7 @@ Historical design references: [Lancaster research, American Society of Arms Coll
 
 Animal deaths, knockdowns and severed wolf legs are applied explicitly to co-op replicas, including when their physics is disabled. Nearby living animals appear within 75 m: red hostile, blue panicked, pink calm. Mission targets retain their map rings outside that radius. Bears growl on engagement and during pursuit; wolf warning vocals are louder.
 
-Round 6 has a whole-round ordinary wolf budget of four solo or five with two hunters. Early packs normally contain two or three wolves; later encounters still escalate. Werewolves have at least 420 HP (individual maximum health multiplied by 3.5, with a 420 minimum). A penetrating brain or heart hit is instantly fatal.
+Round 6 has a whole-round ordinary wolf budget of four solo or five with two hunters. Early packs normally contain two or three wolves; later encounters still escalate. Werewolves have at least 420 HP (individual maximum health multiplied by 3.5, with a 420 minimum). A penetrating brain hit deals 450 damage and a heart hit 900; tougher enemies can survive.
 
 The four-second replay includes faint nearby static scenery and impact blood. Its trajectory graph adds the struck anatomy at the endpoint, using the same vertical scale as the arc; target width is deliberately enlarged for legibility. Original frontier-ranger outfits add goggles, dusters, leather equipment and articulated coat tails. The left field-condition avatar highlights actual injuries beside HP.
 

@@ -23,3 +23,5 @@ Cloudflare documents Quick Tunnels as development/testing infrastructure without
 Native OpenGL captures checked the paginated armory with pictures and accuracy, and the distinct feathered angel / red tweed-suit devil models. All 36 weapon thumbnails were rendered from game models. Captures remain local under qa. The editor import reports no script errors.
 
 Animal pain foley is original synthesis except the wolf's short excerpt of the existing attributed public-domain NPS recording. Historical sources support relative accuracy ordering; exact spread values remain gameplay tuning (accuracy-notes.md).
+
+Release verification: the exported embedded-PCK Windows executable passed its isolated headless --qa smoke run with VISUAL_QA_COMPLETE and no script/engine errors. The six gameplay suites passed 310 checks in total.
