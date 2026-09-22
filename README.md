@@ -573,9 +573,9 @@ The main menu's **Weapon Stats & Prices** opens a six-page guide sorted by price
 
 ## Psychedelic mushrooms and primitive fire siphon
 
-Small red Amanita muscaria clusters with cream spots occasionally grow on navigable terrain. Approach and press **E / controller Y** to consume one. Each player can consume a cluster once per round; another player's pickup does not take yours away. **Psychedelic** lasts until the next cabin rest: highly vivid colours, species silhouettes for all living animals on both radar layouts, and **30% lower maximum HP**, with current HP capped immediately. Additional mushrooms do not compound the penalty. It stacks with lycanthropy: 70 HP before the permanent upgrade, 140 HP afterwards. Rest clears psychedelic and restores the usual maximum. The mushroom effect is a fictional game mechanic.
+Small red Amanita muscaria clusters with cream spots occasionally grow on navigable terrain. Approach and press **E / controller Y** to consume one. Each player can consume a cluster once per round; another player's pickup does not take yours away. **Psychedelic** lasts until the next cabin rest: highly vivid colours, the normal map with tiny skulls marking dangerous animals and human enemies throughout the map, and **30% lower maximum HP**, with current HP capped immediately. Additional mushrooms do not compound the penalty. It stacks with lycanthropy: 70 HP before the permanent upgrade, 140 HP afterwards. Rest clears psychedelic and restores the usual maximum. The mushroom effect is a fictional game mechanic.
 
-The **Primitive Fire Siphon** is a fictional brass, hand-pumped flame weapon costing **850 credits**. Hold left mouse / right trigger for flame pulses: 3 traces × 7 base damage every 0.15 seconds, 5 m effective reach, 10 m maximum, 60 fuel pulses loaded plus 120 reserve, and a 5-second reload. Fuel replenishes at round rest. Flames stop at walls, can burn other hunters, and cannot be fired indoors or while sprinting. The weapon has an original model, orange flame particles and a synthesised fire roar. It is available in stores, Free Play and the main-menu stat guide.
+The **Primitive Fire Siphon** is a fictional brass, hand-pumped flame weapon costing **850 credits**. Hold left mouse / right trigger for flame pulses: 48 base damage to each exposed target within a 56-degree cone every 0.2 seconds, 5 m effective reach, 10 m maximum, 25 fuel pulses (five seconds) loaded plus 75 reserve, and a 5-second reload. Fuel replenishes at round rest. Flames stop at walls, can burn other hunters, and cannot be fired indoors or while sprinting. The weapon has an original model, orange flame particles and a synthesised fire roar. It is available in stores, Free Play and the main-menu stat guide.
 
 ## Incapacitation and dark sacrifices
 
@@ -583,15 +583,16 @@ Animals and enemy NPCs with **more than 0 HP and at most 7% of maximum HP** beco
 
 Approach within 3 metres with a clear line of sight and press **E / controller Y**. A four-second ritual locks movement and firing, draws a rotating red pentagram and rising sparks, pulses red lighting and plays original ominous music. Taking damage, moving away, losing the victim or changing rounds interrupts it. The host validates co-op rituals and prevents two players claiming the same victim.
 
-A completed sacrifice counts as a normal kill for mission progress and rewards. Only the performer receives its boon. Boons last for **three rounds including the current round**; the same type refreshes its duration, and different types stack. They survive cabin rests and clear on a new run. Active names and remaining rounds appear along the bottom of the HUD.
+A completed sacrifice counts as a normal kill for mission progress and rewards. Only the performer receives its boon. Boons are **permanent for the run** without round expiry. Different types stack; repeating a type does not multiply it again. They survive cabin rests and clear on a new run. Permanent status names appear on both solo and split-screen HUDs.
 
 | Sacrifice | Status effect | Benefit |
 |---|---|---|
+| Moose | Titan's Endurance | Double stamina recovery |
 | Deer | Hart's Vigour | 35% less sprint stamina use |
 | Duck | Marsh Veil | 40% less movement noise for detection |
-| Goose | Watchful Omen | All-animal radar with species icons |
+| Goose | Watchful Omen | Normal map plus tiny danger skulls |
 | Mink | Shadow Step | 50% faster crouched movement |
-| Wolf | Pack Hunger | 20% more weapon damage |
+| Wolf | Pack Hunger | Double weapon damage |
 | Werewolf | Moon Blood | 25% more maximum health |
 | Bear | Iron Hide | 20% less incoming damage |
 | Raider | Sleight of Hand | 25% shorter reloads |
@@ -599,3 +600,14 @@ A completed sacrifice counts as a normal kill for mission progress and rewards. 
 | Musketeer | Dead Eye | 30% less weapon spread |
 
 Moon Blood stacks with lycanthropy and psychedelic: an empowered infected hunter has 250 maximum HP, or 175 while psychedelic. Increased maximum HP does not instantly heal the hunter; normal healing and rest can fill it.
+
+
+## Watchtowers, moose and close combat
+
+All co-op hunters now wake in the main red cabin. Four non-climbable watchtowers mark the north, east, south and west of the navigable map. At a tower's ground-level sign or the cabin travel sign, press E / controller Y. Select with arrow keys / D-pad, confirm with Enter / A, cancel with Escape / B. Travel preserves wounds, health, ammunition and stamina. Stations appear as mint dots on both maps; the original island asset is unchanged.
+
+Each round includes two ambient moose with 650 HP, heavy shoulders, long legs and broad antlers. They may defend their space within six metres; shooting provokes a sustained charge even after a heavy-hit flinch. Vital heart/brain shots still kill. Free Play keeps them non-hostile. Moose have anatomy, limb damage, X-rays, network replicas and their own sacrifice boon.
+
+Knives deal 115 base damage, axes 130 and spears 200, retaining short range and arcing flight. Holding the struggle control now animates repeated defensive knife thrusts, each doing 10 damage every half-second. An escaped attacker flinches for three seconds. Static X-rays use thicker trajectories and red impact markers.
+
+Rewards now go through one host-owned award path, adding the same amount to every wallet. Sequenced reward messages ignore duplicate deliveries; client replicas cannot pay their own kills. Starting money is applied to both hunters together; purchases remain individual.

@@ -49,7 +49,7 @@ func launch(original: Node) -> void:
 		if index==1:
 			for track in game.sounds.score: track.stop()
 	# Bind both hunters before starting either campaign. The host's normal wake
-	# path assigns player 2 a different cabin synchronously, without joining.
+	# path places both hunters in the main cabin synchronously, without joining.
 	games[0].coop.setup_local(games[1].coop,1)
 	games[1].coop.setup_local(games[0].coop,2)
 	games[0].coop._peer_connected(2)

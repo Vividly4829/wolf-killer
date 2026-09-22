@@ -6,6 +6,8 @@ const Avatar = preload("res://scripts/coop_avatar.gd")
 var game: Node3D
 var slots: Dictionary = {}
 # Gross rewards received this round; purchases never subtract from this ledger.
+var reward_serial:=0
+var received_reward_serial:=-1
 var round_earnings: Dictionary = {1: 0}
 var earning_slots: Dictionary = {1: 1}
 var local_spawn := Vector3.ZERO
@@ -106,6 +108,7 @@ func join_session(address: String) -> void:
 func leave() -> void:
 	local_partner=null; local_peer_id=0; local_sender=0
 	active = false
+	reward_serial=0; received_reward_serial=-1
 	awaiting_spawn=false
 	slots.clear()
 	generation = 0
@@ -173,15 +176,12 @@ func starting_wallet(amount: int) -> void:
 	game.progress.save_progress()
 
 func spawn_point(id: int) -> Vector3:
-	if id==1: return game.world.bed_wake_position
-	var house: Dictionary = game.world.exploration_data.houses[int(slots.get(id,1))-1]
-	var nav = game.world.nav
-	return nav.point(nav.nearest(house.center[0],house.center[1],2))
-func spawn_yaw(id: int) -> float:
-	if id==1: return game.world.bed_wake_yaw
-	var house: Dictionary = game.world.exploration_data.houses[int(slots.get(id,1))-1]
-	var p := spawn_point(id)
-	return atan2(p.x-float(house.door[0]),p.z-float(house.door[2]))
+	var offset:=Vector3(0,0,(int(slots.get(id,0)))*.85)
+	var p: Vector3=game.world.bed_wake_position+offset
+	var cell: int=game.world.nav.nearest(p.x,p.z,.6)
+	return game.world.nav.point(cell) if cell>=0 else game.world.bed_wake_position
+func spawn_yaw(_id: int) -> float:
+	return game.world.bed_wake_yaw
 func wake_remote(id: int,recovery: bool) -> void:
 	if avatars.has(id): avatars[id].remove_meta("psychedelic")
 	send_to(id,"wake_player",[game.level,game.world.weather.season,game.world.weather.hour,game.world.weather.blood_moon,spawn_point(id),spawn_yaw(id),generation,recovery])
@@ -237,6 +237,7 @@ func host_started() -> void:
 	game.player._update_rotation()
 	if is_instance_valid(local_area): local_area.collision_layer = 2
 	for id in avatars:
+		if game.session_start_money>=0 and game.get_meta("applying_start_wallet",false): send_to(id,"starting_wallet",[game.session_start_money])
 		avatars[id].remove_meta("ritual_boons")
 		avatars[id].remove_meta("infected_wave")
 		avatars[id].set_beast(false)
@@ -490,6 +491,7 @@ func shoot(origin: Vector3,direction: Vector3,weapon: int,serial: int,secondary:
 	if avatar.get_meta("sprinting",false): spec.spread = maxf(float(spec.spread)*4,.085)
 	for pellet in int(spec.pellets):
 		var dir := (direction.normalized()+Vector3(randf_range(-spec.spread,spec.spread),randf_range(-spec.spread,spec.spread),randf_range(-spec.spread,spec.spread))).normalized()
+		if spec.get("flame",false): dir=direction.normalized()
 		if float(spec.projectile_speed)>0:
 			var bolt := preload("res://scripts/crossbow_bolt.gd").new()
 			game.add_child(bolt)
@@ -548,13 +550,18 @@ func earnings_text() -> String:
 		parts.append("P%d +%d" % [int(earning_slots.get(id,1)),int(round_earnings[id])])
 	return "ROUND CR  /  " + " · ".join(parts)
 func award(amount: int) -> void:
-	if client(): return
+	if client() or amount<=0: return
+	game.progress.earn(amount)
+	reward_serial+=1
 	round_earnings[1] = int(round_earnings.get(1,0))+amount
 	if active:
 		for id in connected_peers(): round_earnings[id] = int(round_earnings.get(id,0))+amount
-		send_all("grant_money",[amount])
+		send_all("grant_money",[amount,reward_serial])
 @rpc("authority","reliable")
-func grant_money(amount: int) -> void:
+func grant_money(amount: int,serial: int=-1) -> void:
+	if not client() or amount<=0: return
+	if serial>=0 and serial<=received_reward_serial: return
+	received_reward_serial=maxi(received_reward_serial,serial)
 	game.progress.money += amount
 	game.progress.save_progress()
 func begin_remote_maul(wolf: Node3D,avatar: Node3D) -> bool:
@@ -773,10 +780,10 @@ func flame_effect(a: Vector3,b: Vector3) -> void:
 	if a.distance_squared_to(b)<.001: return
 	var fx: Node3D = game.combat_fx.effect("FlameJet",.4)
 	var particles := CPUParticles3D.new(); fx.add_child(particles); particles.global_position=a
-	particles.amount=18; particles.lifetime=.35; particles.one_shot=true; particles.explosiveness=.1
-	particles.direction=(b-a).normalized(); particles.spread=5; particles.gravity=Vector3(0,1,0)
+	particles.amount=36; particles.lifetime=.35; particles.one_shot=true; particles.explosiveness=.1
+	particles.direction=(b-a).normalized(); particles.spread=28; particles.gravity=Vector3(0,1,0)
 	particles.initial_velocity_min=a.distance_to(b)/.35; particles.initial_velocity_max=particles.initial_velocity_min
-	particles.scale_amount_min=.07; particles.scale_amount_max=.19
+	particles.scale_amount_min=.13; particles.scale_amount_max=.36
 	var mesh := SphereMesh.new(); mesh.radius=.65; mesh.height=1.3; mesh.radial_segments=6; mesh.rings=3
 	particles.mesh=mesh
 	var gradient := Gradient.new(); gradient.set_color(0,Color(1,.8,.1,.9)); gradient.set_color(1,Color(.4,.07,.02,0)); particles.color_ramp=gradient
@@ -799,3 +806,24 @@ func ritual_boon(species: String,expiry: int) -> void: game.rituals.grant(specie
 func ritual_visual(point: Vector3,peer: int) -> void: game.rituals.visual(point,peer)
 @rpc("authority","reliable")
 func ritual_visual_end(peer: int) -> void: game.rituals.stop_visual(peer)
+
+@rpc("any_peer","reliable")
+func struggle_stab() -> void:
+	if not server(): return
+	var id:=sender_id()
+	if not avatars.has(id): return
+	var hunter: Node3D=avatars[id]
+	if hunter.health<=0 or hunter.mauling==0 or clock-float(hunter.get_meta("last_stab",-100))<.45: return
+	if not is_instance_id_valid(hunter.mauling): return
+	var victim=instance_from_id(hunter.mauling)
+	if not is_instance_valid(victim) or victim.dead or victim.position.distance_to(hunter.position)>4: return
+	hunter.set_meta("last_stab",clock)
+	var old:=shooter; shooter=id; victim.damage(10); shooter=old
+	game.gore.blood_burst(victim.position+Vector3.UP*.8,Vector3.UP,.45)
+	if victim.dead or victim.reaction.incapacitated(): release_remote_maul(id)
+
+@rpc("any_peer","reliable")
+func travel_request(destination: int) -> void:
+	if server(): game.fast_travel.travel(sender_id(),destination)
+@rpc("authority","reliable")
+func travel_arrived(destination: int) -> void: game.fast_travel.arrived(destination)

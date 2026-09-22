@@ -88,12 +88,13 @@ func review(reports: Array[Dictionary]) -> void:
 		var b: Vector3 = report.end
 		var node := MeshInstance3D.new()
 		var mesh := CylinderMesh.new()
-		mesh.top_radius = .008
-		mesh.bottom_radius = .008
+		mesh.top_radius = .019
+		mesh.bottom_radius = .019
 		mesh.height = maxf(.001,a.distance_to(b))
 		node.mesh = mesh
 		node.position = (a+b)*.5
 		if a.distance_to(b)>.001: node.quaternion = Quaternion(Vector3.UP,(b-a).normalized())
 		node.material_override = material(Color("ffc977"))
 		impacts.add_child(node)
+		if not report.get("unhit",false): ellipsoid(a,Vector3.ONE*.05,material(Color("ff172e")),impacts)
 	get_child(0).render_target_update_mode = SubViewport.UPDATE_ONCE

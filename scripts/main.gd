@@ -79,6 +79,8 @@ var rest_left: float = 0.0
 var bandages: int = 2
 var bandage_left: float = 0.0
 var struggle_wolf: Node3D
+var fast_travel: Node3D
+var stab_left:=0.0
 var struggle_progress: float = 0.0
 var struggle_tick: float = 0.0
 var struggle_grace: float = 0.0
@@ -149,6 +151,7 @@ func _ready() -> void:
 		progress.load_progress()
 	world = WorldScript.new()
 	add_child(world)
+	fast_travel=preload("res://scripts/fast_travel.gd").new(); fast_travel.game=self; add_child(fast_travel)
 	combat_fx=preload("res://scripts/combat_fx.gd").new(); combat_fx.game=self; add_child(combat_fx)
 	gore = GoreScript.new()
 	add_child(gore)
@@ -320,7 +323,7 @@ func _unhandled_input(event: InputEvent) -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
 		quit_game()
-	elif what == NOTIFICATION_APPLICATION_FOCUS_OUT and mode == "playing" and not OS.get_cmdline_user_args().has("--qa"):
+	elif what == NOTIFICATION_APPLICATION_FOCUS_OUT and mode == "playing" and not OS.get_cmdline_user_args().has("--qa") and not OS.get_cmdline_user_args().has("--capture"):
 		set_mode("paused")
 
 func set_mode(value: String) -> void:
@@ -377,6 +380,7 @@ func start_run(sandbox: bool = false, use_menu_settings: bool = false) -> void:
 	run_bites = 0
 	struggle_grace = 0.0
 	level = clampi(menu_start_level,1,30) if use_menu_settings and not sandbox else 1
+	set_meta("applying_start_wallet",use_menu_settings and not sandbox and menu_start_money>=0)
 	if use_menu_settings and not sandbox and menu_start_money>=0:
 		session_start_money=clampi(menu_start_money,0,2000000000)
 		progress.money=session_start_money
@@ -512,7 +516,6 @@ func wildlife_defeated(animal: Node3D) -> void:
 func complete_wave() -> void:
 	if coop.client() or not is_playing() or not campaign.job_ready(): return
 	if coop.active and not coop.any_living(): return
-	progress.earn(40+level*8)
 	coop.award(40+level*8)
 	progress.best_level=maxi(progress.best_level,level)
 	progress.save_progress()
@@ -548,7 +551,7 @@ func _spawn_wildlife() -> void:
 	if level==3: species_list = ["deer","deer","duck","duck","goose","goose","goose","mink"]
 	var local_count := species_list.size()
 	# Additional wildlife across the connected map, independent of the quota.
-	species_list.append_array(["deer","deer","deer","deer","deer","deer","duck","duck","duck","goose","goose","mink","mink"])
+	species_list.append_array(["moose","moose","deer","deer","deer","deer","deer","deer","duck","duck","duck","goose","goose","mink","mink"])
 	var nearby: Array[int] = []
 	for cell in world.wolf_nav.reachable:
 		var point: Vector3 = world.wolf_nav.point(cell)
@@ -567,7 +570,7 @@ func _spawn_wildlife() -> void:
 			var candidate: Vector3=world.wolf_nav.point(candidates[randi_range(0,candidates.size()-1)])
 			var spacing:=8.0
 			for p in used: spacing=minf(spacing,p.distance_to(candidate))
-			var room: float=animal.land_room(candidate) if species=="deer" else 1.0
+			var room: float=animal.land_room(candidate) if species in ["deer","moose"] else 1.0
 			var score:=spacing+room*6
 			if score>best_score: best_position=candidate; best_score=score
 			if spacing>=6 and room>=.625 and candidate.y>.1:
@@ -590,7 +593,6 @@ func wolf_defeated(wolf: Node3D) -> void:
 	if free_play: return
 	campaign.animal_killed(wolf)
 	run_kills += 1
-	progress.earn(25)
 	coop.award(25)
 	sounds.play("coin", -21)
 	show_notice("+25 CREDITS  /  Alpha defeated" if wolf.is_alpha else "+25 CREDITS  /  Wolf defeated", 2.5 if wolf.is_alpha else 1.7)
@@ -699,6 +701,7 @@ func quick_throw() -> bool:
 	return true
 
 func fire_weapon() -> void:
+	if fast_travel.opened: return
 	if rituals and rituals.channeling(): return
 	if player.is_sprinting: return
 	if not free_play and not progress.owned.has(current_weapon):
@@ -744,6 +747,7 @@ func fire_weapon() -> void:
 		if player._actual_speed > 0.5:
 			spread *= 1.0 + minf(1.5, player._actual_speed / 5.0)
 		var direction := (-shot_transform.basis.z + shot_transform.basis.x * randf_range(-spread, spread) + shot_transform.basis.y * randf_range(-spread, spread)).normalized()
+		if weapon.get("flame",false): direction=-shot_transform.basis.z
 		var origin := shot_transform.origin
 		if float(weapon.projectile_speed) > 0.0:
 			var bolt := BoltScript.new()
@@ -755,14 +759,12 @@ func fire_weapon() -> void:
 		fire_ballistic(origin,direction,weapon,shot_review.serial,1,excluded)
 
 func fire_ballistic(origin: Vector3,direction: Vector3,weapon: Dictionary,review_serial: int,peer: int,excluded: Array[RID]) -> void:
+	if weapon.get("flame",false):
+		preload("res://scripts/flame_cone.gd").fire(self,origin,direction,weapon,review_serial,peer,excluded)
+		return
 	var result: Dictionary=preload("res://scripts/ballistic_trace.gd").cast(get_world_3d().direct_space_state,origin,direction,weapon,excluded)
 	coop.deliver_path(peer,review_serial,result.path)
-	if weapon.get("flame",false):
-		var nozzle: Vector3 = player.weapon.to_global(player.weapon.muzzle_position) if peer == 1 else origin
-		if peer != 1 and coop.avatars.has(peer): nozzle=coop.avatars[peer].weapon.to_global(coop.avatars[peer].muzzle)
-		coop.flame_effect(nozzle,result.path.points[-1])
-		if coop.active: coop.send_all("flame_effect",[nozzle,result.path.points[-1]])
-	elif not weapon.get("laser",false):
+	if not weapon.get("laser",false):
 		var points: PackedVector3Array=result.path.points.duplicate()
 		if peer==1: points[0]=player.weapon.to_global(player.weapon.muzzle_position)
 		elif coop.avatars.has(peer) and is_instance_valid(coop.avatars[peer].weapon): points[0]=coop.avatars[peer].weapon.to_global(coop.avatars[peer].muzzle)
@@ -1001,6 +1003,7 @@ func start_wolf_struggle(wolf: Node3D) -> bool:
 		return false
 	struggle_wolf = wolf
 	struggle_progress = 0.0
+	stab_left=0
 	struggle_tick = wolf.get_maul_interval()
 	reload_left = 0.0
 	bandage_left = 0.0
@@ -1016,7 +1019,17 @@ func start_wolf_struggle(wolf: Node3D) -> bool:
 func _update_struggle(delta: float) -> void:
 	if not is_struggling():
 		return
+	stab_left=maxf(0,stab_left-delta)
 	var fighting: bool = player.fight_held()
+	if fighting and stab_left<=0:
+		stab_left=.5
+		player.stab_animation(); sounds.play_flesh_hit()
+		if coop.client(): coop.send_to(1,"struggle_stab",[])
+		else:
+			var victim:=struggle_wolf
+			victim.damage(10)
+			gore.blood_burst(victim.position+Vector3.UP*.8,-player.camera.global_basis.z,.45)
+		if not is_struggling(): return
 	if fighting:
 		var resistance: float = struggle_wolf.get_struggle_resistance()
 		struggle_progress = minf(1.0, struggle_progress + delta * 0.29 * rituals.factor("struggle") / ((1.0 + player.arm_injury * 0.25) * resistance))
@@ -1059,6 +1072,7 @@ func use_bandage() -> void:
 func interaction_prompt() -> String:
 	if health<=0 or is_struggling(): return ""
 	var key := "Y" if controller_device>=0 else "E"
+	if fast_travel.nearby(player.position)>=0: return "[ %s ] FAST TRAVEL"%key
 	if rituals.channeling(): return "DARK SACRIFICE / Hold still"
 	var offering: Node3D=rituals.nearest()
 	if offering: return "[ %s ] SACRIFICE %s / %s" % [key,rituals.kind(offering).to_upper(),rituals.BOONS[rituals.kind(offering)].name]
@@ -1090,6 +1104,8 @@ func drink_coffee() -> void:
 	else: coop.serve_coffee(1,cabin)
 
 func interact_shop() -> void:
+	if is_playing() and health>0 and fast_travel.nearby(player.position)>=0:
+		fast_travel.open_menu(); return
 	if rituals.channeling(): return
 	if is_playing() and health>0 and not is_struggling():
 		var offering: Node3D=rituals.nearest()
@@ -1330,7 +1346,7 @@ func radar_animals() -> Array[Node3D]:
 	if coop.client(): candidates.append_array(coop.replicas.values())
 	for animal in candidates:
 		if not is_instance_valid(animal) or animal.is_queued_for_deletion() or animal.dead or found.has(animal): continue
-		if rituals.all_radar() or animal.position.distance_to(player.position)<=75: found.append(animal)
+		if (rituals.all_radar() and radar_dangerous(animal)) or animal.position.distance_to(player.position)<=75: found.append(animal)
 	return found
 
 func radar_color(animal: Node3D) -> Color:
@@ -1365,3 +1381,6 @@ func start_split() -> void:
 	var session = load("res://scripts/split_session.gd").new()
 	get_tree().root.add_child(session)
 	session.launch.call_deferred(self)
+
+func radar_dangerous(animal: Node3D) -> bool:
+	return animal is IslandWolf or str(animal.get("species")) in ["moose","bear","raider","legionary","musketeer"] or animal.get("alerted")==true

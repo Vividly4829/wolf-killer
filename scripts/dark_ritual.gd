@@ -1,10 +1,11 @@
 extends Node
 const BOONS := {
+	"moose":{"name":"TITAN'S ENDURANCE","effect":"stamina_regen","factor":2.0,"description":"Double stamina recovery"},
 	"deer":{"name":"HART'S VIGOUR","effect":"stamina","factor":.65,"description":"35% less sprint stamina use"},
 	"duck":{"name":"MARSH VEIL","effect":"noise","factor":.6,"description":"40% quieter movement"},
-	"goose":{"name":"WATCHFUL OMEN","effect":"radar","factor":1.0,"description":"All-animal radar and species icons"},
+	"goose":{"name":"WATCHFUL OMEN","effect":"radar","factor":1.0,"description":"Danger radar with skull markers"},
 	"mink":{"name":"SHADOW STEP","effect":"sneak","factor":1.5,"description":"50% faster crouched movement"},
-	"wolf":{"name":"PACK HUNGER","effect":"damage","factor":1.2,"description":"20% more weapon damage"},
+	"wolf":{"name":"PACK HUNGER","effect":"damage","factor":2.0,"description":"Double weapon damage"},
 	"werewolf":{"name":"MOON BLOOD","effect":"health","factor":1.25,"description":"25% more maximum health"},
 	"bear":{"name":"IRON HIDE","effect":"resistance","factor":.8,"description":"20% less incoming damage"},
 	"raider":{"name":"SLEIGHT OF HAND","effect":"reload","factor":.75,"description":"25% shorter reloads"},
@@ -33,7 +34,7 @@ func has_boon(species: String,peer: int=0) -> bool:
 	if peer>0 and peer!=game.coop.peer_id():
 		if not game.coop.avatars.has(peer): return false
 		entries=game.coop.avatars[peer].get_meta("ritual_boons",{})
-	return int(entries.get(species,-1))>game.level
+	return entries.has(species)
 func factor(effect: String,peer: int=0) -> float:
 	for species in BOONS:
 		if BOONS[species].effect==effect and has_boon(species,peer): return float(BOONS[species].factor)
@@ -104,16 +105,17 @@ func ended(success: bool) -> void:
 func grant(species: String,expiry: int) -> void:
 	if not BOONS.has(species): return
 	boons[species]=expiry; channel_left=0; channel_type=""
-	game.show_notice("%s / %s / through round %d"%[BOONS[species].name,BOONS[species].description,expiry-1],7)
+	game.show_notice("%s / %s / PERMANENT"%[BOONS[species].name,BOONS[species].description],7)
 func _process(delta: float) -> void:
 	channel_left=maxf(0,channel_left-delta)
 	veil.visible=channeling() and game.mode=="playing"
 	veil.color=Color(.24,0,.015,.16+.06*sin(channel_left*9))
 	ui.visible=game.mode=="playing"
+	ui.position=Vector2(220,280) if is_instance_valid(game.split_session) else Vector2(345,650)
 	var rows: PackedStringArray=[]
 	if channeling(): rows.append("DARK SACRIFICE  %d%%"%roundi((1-channel_left/DURATION)*100))
 	for species in boons:
-		if has_boon(species): rows.append("%s (%d rounds)"%[BOONS[species].name,int(boons[species])-game.level])
+		if has_boon(species): rows.append("%s / PERMANENT"%BOONS[species].name)
 	ui.text=" · ".join(rows); ui.size.x=590; ui.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
 	game.health=minf(game.health,game.maximum_health())
 	if game.coop.client(): return
@@ -126,7 +128,7 @@ func _process(delta: float) -> void:
 		task.left-=delta
 		if task.left>0: continue
 		tasks.erase(peer); target.remove_meta("ritual_owner")
-		var species: String=task.kind; var expiry: int=game.level+3
+		var species: String=task.kind; var expiry: int=2147483647
 		if peer==1: grant(species,expiry)
 		else:
 			var entries: Dictionary=hunter.get_meta("ritual_boons",{}); entries[species]=expiry; hunter.set_meta("ritual_boons",entries)

@@ -32,7 +32,7 @@ func run() -> void:
 	check(not game.mushrooms.can_consume(1,1,Vector3(999,999,999)),"distant mushroom requests rejected")
 	var deer=preload("res://scripts/wildlife.gd").new(); deer.game=game; game.add_child(deer); deer.set_physics_process(false); deer.position=Vector3(140,80,140)
 	game.player.position=Vector3(-100,1,-100)
-	check(game.radar_animals().has(deer),"psychedelic radar includes distant animals")
+	check(not game.radar_animals().has(deer),"psychedelic radar keeps distant passive animals off map")
 	game.affliction.psychedelic=false
 	check(not game.radar_animals().has(deer),"normal radar retains 75 metre limit")
 	var avatar=preload("res://scripts/coop_avatar.gd").new(); game.add_child(avatar); avatar.set_beast(true)
@@ -55,14 +55,14 @@ func run() -> void:
 	check(deer.health==before,"solid wall blocks flame damage")
 	wall.queue_free()
 	game.set_mode("playing"); game.fire_cooldown=0; game.reload_left=0; game.player.is_sprinting=false
-	game.ammo[35]=60; game.player._fire_trigger_down=true
+	game.ammo[35]=25; game.player._fire_trigger_down=true
 	game.player._physics_process(0)
-	check(game.ammo[35]==59,"held keyboard trigger consumes a fuel pulse")
+	check(game.ammo[35]==24,"held keyboard trigger consumes a fuel pulse")
 	game.fire_cooldown=0; game.player._physics_process(0)
-	check(game.ammo[35]==58,"held keyboard trigger continues the flame stream")
+	check(game.ammo[35]==23,"held keyboard trigger continues the flame stream")
 	game.player._fire_trigger_down=false
 	game.player._physics_process(0)
-	check(game.ammo[35]==58,"releasing trigger stops fuel use")
+	check(game.ammo[35]==23,"releasing trigger stops fuel use")
 	game.affliction.psychedelic=true; game.affliction._process(0); game.hud._process(0)
 	await capture("effects")
 	game.coop.flame_effect(game.player.weapon.to_global(game.player.weapon.muzzle_position),origin+Vector3.FORWARD*8)

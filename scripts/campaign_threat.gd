@@ -218,7 +218,7 @@ func receive_ballistic_hit(amount: float,point: Vector3,direction: Vector3,_zone
 	report.merge({"damage":before-health,"calculated_damage":amount*mult,"multiplier":mult,"fatal":dead,"bleed":bleeding_rate},true)
 	return report
 func damage(amount: float,reward_hunter: bool=false) -> void:
-	if dead: return
+	if dead or game.coop.client(): return
 	if amount>2: reaction.hit(amount/max_health)
 	health=maxf(0,health-amount)
 	if reaction: reaction.hold_incapacitated()
@@ -227,9 +227,9 @@ func damage(amount: float,reward_hunter: bool=false) -> void:
 		dead=true; reaction.die()
 		if species in ["raider","legionary","musketeer"]: model.get_child(0).set_process(false)
 		for area in find_children("*","Area3D",true,false): area.set_deferred("collision_layer",0)
+		if paid: game.coop.award(60 if species=="bear" else 35)
 		# Required threats count even when the player engineers an animal fight.
 		game.campaign.animal_killed(self,true)
-		if paid: game.progress.earn(60 if species=="bear" else 35); game.coop.award(60 if species=="bear" else 35)
 		game.gore.blood_pool(position,.4)
 func get_identification() -> String: return species.to_upper()+" / "+("ALERTED" if alerted else "UNAWARE")
 

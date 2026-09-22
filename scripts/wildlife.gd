@@ -42,9 +42,9 @@ var defensive_target: Node3D
 func _ready() -> void:
 	add_to_group("wildlife")
 	escape_angle=randf_range(-PI,PI)
-	health = 70 if species=="deer" else 18
+	health = 650 if species=="moose" else (70 if species=="deer" else 18)
 	max_health=health
-	reward = 15 if species=="deer" else (7 if species=="goose" else 5)
+	reward = 70 if species=="moose" else (15 if species=="deer" else (7 if species=="goose" else 5))
 	if species in ["deer","mink"]:
 		model = load("res://assets/wildlife/"+species+".glb").instantiate()
 		add_child(model)
@@ -77,6 +77,8 @@ func _ready() -> void:
 					if "leg" in skeleton.get_bone_name(bone) and ".002" in skeleton.get_bone_name(bone):
 						lowest=minf(lowest,to_local(skeleton.global_transform*skeleton.get_bone_global_pose(bone).origin).y)
 				if is_finite(lowest): model.position.y+=.085-lowest
+	elif species=="moose":
+		model=Node3D.new(); add_child(model); build_moose()
 	else:
 		model = Node3D.new()
 		add_child(model)
@@ -99,11 +101,11 @@ func _ready() -> void:
 	hit.set_meta("hit_zone","body")
 	var shape := CollisionShape3D.new()
 	var capsule := CapsuleShape3D.new()
-	capsule.radius = .30 if species=="deer" else .17
-	capsule.height = 1.4 if species=="deer" else .65
+	capsule.radius = .55 if species=="moose" else (.30 if species=="deer" else .17)
+	capsule.height = 2.4 if species=="moose" else (1.4 if species=="deer" else .65)
 	shape.shape = capsule
 	shape.rotation.x = PI/2
-	shape.position.y = .82 if species=="deer" else .24
+	shape.position.y = 1.55 if species=="moose" else (.82 if species=="deer" else .24)
 	hit.add_child(shape)
 	add_child(hit)
 	for organ in preload("res://scripts/wildlife_anatomy.gd").organs(species):
@@ -129,8 +131,9 @@ func ellipsoid(p: Vector3,r: Vector3,color: Color) -> MeshInstance3D:
 	model.add_child(node)
 	return node
 func damage(amount: float,paid: bool = true) -> void:
-	if dead: return
-	if amount>2: reaction.hit(amount/(70.0 if species=="deer" else 18.0))
+	if dead or game.coop.client(): return
+	if species=="moose" and paid and amount>0 and not get_meta("bleed_tick",false): provoke_moose()
+	if amount>2: reaction.hit(amount/max_health)
 	health = maxf(0,health-amount)
 	if reaction: reaction.hold_incapacitated()
 	if health<=0:
@@ -139,7 +142,6 @@ func damage(amount: float,paid: bool = true) -> void:
 			if node is Area3D: node.set_deferred("collision_layer",0)
 		reaction.die()
 		if paid:
-			game.progress.money += reward
 			game.coop.award(reward)
 			game.progress.save_progress()
 			game.show_notice("+%d CR / %s" % [reward,species.to_upper()],2)
@@ -301,7 +303,9 @@ func _physics_process(delta: float) -> void:
 		if trail_left<=0:
 			trail_left = .55
 			if not aquatic: game.gore.blood_pool(position,.13)
+		set_meta("bleed_tick",true)
 		damage(bleeding_rate*delta,wounded_by_hunter)
+		set_meta("bleed_tick",false)
 		if dead: return
 	if defensive_deer(delta): return
 	var hunters: Array = [game.player]
@@ -346,7 +350,7 @@ func _physics_process(delta: float) -> void:
 	var destination: Vector3 = goal if aquatic else (route[0] if not route.is_empty() else position)
 	var direction := destination-position
 	direction.y = 0
-	var speed: float=((6.0 if species=="deer" else 2.3) if fleeing else .65)*limbs.speed_factor()
+	var speed: float=((6.0 if species in ["deer","moose"] else 2.3) if fleeing else .65)*limbs.speed_factor()
 	if not aquatic: speed *= game.world.wolf_nav.vegetation_factor(position)
 	if direction.length()>.025:
 		var remaining := direction.length()
@@ -388,6 +392,12 @@ func _physics_process(delta: float) -> void:
 	update_animation(velocity.length() if not aquatic else speed if direction.length()>.025 else 0.0)
 
 func update_animation(speed: float) -> void:
+	if species=="moose" and not dead and reaction.down<=0:
+		for leg in model.get_children():
+			if leg.has_meta("rest"):
+				var rest: Vector3=leg.get_meta("rest")
+				leg.rotation.x=sin(phase*7+(0 if rest.x*rest.z>0 else PI))*minf(.5,speed*.12)
+
 	if not animation or dead or (reaction and reaction.down>0): return
 	var clip: String="Run" if speed>.12 else idle_clip
 	if animation.has_animation(clip):
@@ -400,24 +410,26 @@ func set_network_pose(p: Vector3,yaw: float) -> void:
 
 func _process(delta: float) -> void:
 	if network_replica:
+		phase+=delta
 		position=position.lerp(network_position,1-exp(-delta*18))
 		rotation.y=lerp_angle(rotation.y,network_yaw,1-exp(-delta*12))
 
 func get_identification() -> String: return species.to_upper()+(" / WOUNDED" if bleeding_rate>0 else "")
 
 func defensive_deer(delta: float) -> bool:
-	if species!="deer" or game.free_play or network_replica: return false
+	if species not in ["deer","moose"] or game.free_play or network_replica: return false
 	defensive_cooldown=maxf(0,defensive_cooldown-delta); defensive_hit=maxf(0,defensive_hit-delta)
 	if defensive_left<=0 and defensive_cooldown<=0 and reaction.down<=0:
 		for hunter in [game.player]+game.coop.avatars.values():
-			if position.distance_to(hunter.position)>2.8 or game.world.is_safe_position(hunter.position): continue
+			if position.distance_to(hunter.position)>(6.0 if species=="moose" else 2.8) or game.world.is_safe_position(hunter.position): continue
 			defensive_cooldown=25
-			if randf()<.22:
-				defensive_left=2.4; defensive_target=hunter; route.clear(); search=null
-				game.show_notice("The deer lowers its head!",2)
+			if randf()<(.6 if species=="moose" else .22):
+				defensive_left=12 if species=="moose" else 2.4; defensive_target=hunter; route.clear(); search=null
+				game.show_notice("The moose lowers its antlers!" if species=="moose" else "The deer lowers its head!",2)
 			break
 	if defensive_left<=0: alerted=false; return false
 	defensive_left=maxf(0,defensive_left-delta); alerted=true; fear_left=0
+	if species=="moose" and reaction.down>0: return true
 	if reaction.down>0 or not is_instance_valid(defensive_target) or game.world.is_safe_position(defensive_target.position): defensive_left=0
 	if defensive_left<=0:
 		alerted=false; frighten(position,12); return false
@@ -428,8 +440,35 @@ func defensive_deer(delta: float) -> bool:
 	if offset.length()<1.6 and defensive_hit<=0:
 		var ray:=PhysicsRayQueryParameters3D.create(position+Vector3.UP,defensive_target.position+Vector3.UP,1)
 		if get_world_3d().direct_space_state.intersect_ray(ray).is_empty():
-			if defensive_target==game.player: game.receive_gunshot(14)
+			if defensive_target==game.player: game.receive_gunshot(35 if species=="moose" else 14)
 			else:
-				var old: int=game.coop.shooter; game.coop.shooter=0; game.coop.friendly_hit(defensive_target.peer_id,14); game.coop.shooter=old
+				var old: int=game.coop.shooter; game.coop.shooter=0; game.coop.friendly_hit(defensive_target.peer_id,35 if species=="moose" else 14); game.coop.shooter=old
 			defensive_hit=1.1
 	return true
+
+func provoke_moose() -> void:
+	if game.free_play: return
+	var source: Node3D=game.coop.avatars.get(game.coop.shooter,game.player)
+	defensive_target=source; defensive_left=45; alerted=true; fear_left=0
+	route.clear(); search=null
+
+func build_moose() -> void:
+	var coat:=Color("514036"); var dark:=Color("302722"); var horn:=Color("b9a080")
+	ellipsoid(Vector3(0,1.55,0),Vector3(.55,.59,1.1),coat)
+	ellipsoid(Vector3(0,1.91,.48),Vector3(.43,.49,.57),dark)
+	ellipsoid(Vector3(0,1.78,.95),Vector3(.30,.46,.48),coat)
+	ellipsoid(Vector3(0,1.91,1.35),Vector3(.25,.27,.48),dark)
+	ellipsoid(Vector3(0,1.67,1.57),Vector3(.27,.23,.27),coat)
+	ellipsoid(Vector3(0,1.40,1.03),Vector3(.13,.26,.15),dark)
+	for side in [-1,1]:
+		ellipsoid(Vector3(side*.37,2.1,1.13),Vector3(.25,.10,.15),coat).rotation.z=side*.3
+		ellipsoid(Vector3(side*.23,2.02,1.44),Vector3(.04,.045,.045),Color("130e09"))
+		for z in [-.7,.64]:
+			var zone: String=("front" if z>0 else "rear")+("_left_leg" if side<0 else "_right_leg")
+			var leg:=ellipsoid(Vector3(side*.36,.68,z),Vector3(.12,.66,.13),coat); leg.set_meta("limb",zone); leg.set_meta("rest",leg.position)
+			ellipsoid(Vector3(side*.36,.09,z+.045),Vector3(.14,.09,.18),dark).set_meta("limb",zone)
+		var palm:=ellipsoid(Vector3(side*.72,2.47,1.12),Vector3(.55,.085,.34),horn); palm.rotation.z=side*.3
+		ellipsoid(Vector3(side*.3,2.31,1.13),Vector3(.32,.07,.07),horn).rotation.z=side*.4
+		for i in 6:
+			var tine:=ellipsoid(Vector3(side*(.48+i*.13),2.6+i*.025,.85+(i%2)*.4),Vector3(.045,.21,.055),horn); tine.rotation.z=-side*.3
+	ellipsoid(Vector3(0,1.54,-1.08),Vector3(.11,.16,.13),coat)

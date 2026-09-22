@@ -24,7 +24,7 @@ func _ready() -> void:
 		for node in animal.model.get_children():
 			if node.has_meta("limb"):
 				var zone: String=node.get_meta("limb")
-				if not parts.has(zone): parts[zone]={"nodes":[],"radius":.16 if species=="bear" else .045}
+				if not parts.has(zone): parts[zone]={"nodes":[],"radius":.13 if species=="moose" else .16 if species=="bear" else .045}
 				parts[zone].nodes.append(node)
 		for zone in parts.keys(): register(zone,parts[zone])
 	_process(0)

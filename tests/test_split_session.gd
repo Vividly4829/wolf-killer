@@ -24,6 +24,7 @@ func run() -> void:
 	var original=load("res://scripts/main.gd").new()
 	original.progress.save_path="user://split_test_%d.cfg"%OS.get_process_id()
 	root.add_child(original)
+	original.menu_start_money=1234
 	original.player.use_input_device(0) # Entering from a controller-operated menu must not give P1 the pad.
 	var session=load("res://scripts/split_session.gd").new()
 	session.secondary_save_path="user://split_guest_test_%d.cfg"%OS.get_process_id()
@@ -31,6 +32,7 @@ func run() -> void:
 	await session.launch(original)
 	var host=session.games[0]; var guest=session.games[1]
 	controller_id=guest.controller_device
+	check(host.progress.money==1234 and guest.progress.money==1234,"custom starting wallet applies equally to both players")
 	check(host.mode=="playing" and guest.mode=="playing","both players are active as soon as launch returns, without joining")
 	check(not host.coop.awaiting_spawn and not guest.coop.awaiting_spawn,"neither local player waits for a connection")
 	check(host.multiplayer.multiplayer_peer is OfflineMultiplayerPeer and guest.multiplayer.multiplayer_peer is OfflineMultiplayerPeer,"split screen opens no network sockets")
@@ -38,7 +40,11 @@ func run() -> void:
 	check(guest.player.camera.current and guest.level==host.level,"controller uses its gameplay camera and shared wave")
 	check(host.coop.avatars.size()==1 and guest.coop.avatars.size()==1 and guest.coop.client(),"both hunters can see their teammate immediately")
 	# Rewards are gross round income, shared through the same host snapshot as online play.
+	var host_money: int=host.progress.money; var guest_money: int=guest.progress.money
 	host.coop.award(25)
+	check(host.progress.money-host_money==25 and guest.progress.money-guest_money==25,"reward adds identical money exactly once to both wallets")
+	guest.coop.grant_money(25,host.coop.reward_serial)
+	check(guest.progress.money-guest_money==25,"duplicate reward delivery is ignored")
 	host.coop.clock+=1; host.coop._process(.2)
 	check(host.coop.earnings_text()==guest.coop.earnings_text() and guest.coop.round_earnings.get(1)==25 and guest.coop.round_earnings.get(2)==25,"both HUDs show round earnings for both hunters")
 	guest.progress.money-=10
@@ -56,7 +62,7 @@ func run() -> void:
 		await RenderingServer.frame_post_draw
 		root.get_texture().get_image().save_png("res://qa/split-local-start.png")
 	check(host.get_world_3d()!=guest.get_world_3d(),"local physics worlds isolated")
-	check(host.player.position.distance_to(guest.player.position)>20,"local hunters have different building spawns")
+	check(host.world.is_safe_position(guest.player.position) and host.player.position.distance_to(guest.player.position)<3,"both hunters spawn in the main cabin")
 	check(host.player.controller_device==-1 and guest.player.controller_device==controller_id,"keyboard and controller assigned separately")
 	check(host.nodes_in_group("wildlife").all(func(n): return host.is_ancestor_of(n)),"wildlife queries scoped to local world")
 	await process_frame # Allow viewport rectangles to be laid out before mouse events.
@@ -161,6 +167,16 @@ func run() -> void:
 	var review_key:=InputEventKey.new(); review_key.physical_keycode=KEY_X; review_key.pressed=true
 	Input.parse_input_event(review_key); Input.flush_buffered_events()
 	check(guest.shot_review.selected==1,"keyboard X never changes P2 shot history")
+	# Travel is controlled by that viewport's owner and validated by the host.
+	guest.player.position=guest.fast_travel.points[0]; host.coop.avatars[2].position=guest.player.position
+	tap(JOY_BUTTON_Y)
+	check(guest.fast_travel.opened and not host.fast_travel.opened,"controller opens only P2 travel menu")
+	tap(JOY_BUTTON_A)
+	check(not guest.fast_travel.opened and guest.player.position.distance_to(guest.fast_travel.points[1])<.1 and host.coop.avatars[2].position.distance_to(guest.player.position)<.1,"controller fast travel moves authoritative and local player together")
+	guest.coop.clock+=1; guest.coop._process(.2)
+	check(guest.player.position.distance_to(guest.fast_travel.points[1])<.5,"pose validation preserves fast travel arrival")
+	tap(JOY_BUTTON_Y); check(guest.fast_travel.opened,"controller travel can reopen after released Y")
+	tap(JOY_BUTTON_B)
 	# Local mode cannot turn into an online host or client, even via direct calls.
 	host.coop.host_session(); guest.coop.join_session("127.0.0.1")
 	check(host.coop.peer_id()==1 and guest.coop.peer_id()==2 and host.mode=="playing" and guest.mode=="playing","online host/join requests cannot replace the local session")
@@ -237,6 +253,26 @@ func run() -> void:
 	check(is_equal_approx(guest.health,before_ritual_damage-8) and is_equal_approx(host.coop.avatars[2].health,guest.health),"remote resistance applies exactly once on host and guest")
 	host.coop.clock+=1; host.coop._process(.2)
 	check(sacrifice_copy.dead,"sacrificed victim is dead on both viewports")
+	var moose=preload("res://scripts/wildlife.gd").new(); moose.game=host; moose.species="moose"; host.add_child(moose); moose.position=Vector3(145,80,140); moose.set_physics_process(false)
+	host.coop.clock+=1; host.coop._process(.2)
+	var moose_copy=guest.coop.replicas[moose.get_instance_id()]
+	check(moose_copy.species=="moose" and moose_copy.health==650,"moose model and full health replicate")
+	var hcash: int=host.progress.money; var gcash: int=guest.progress.money
+	moose_copy.damage(1000)
+	check(not moose_copy.dead and guest.progress.money==gcash,"client replica cannot independently award a kill")
+	moose.damage(1000,true); moose.damage(1000,true)
+	check(host.progress.money-hcash==70 and guest.progress.money-gcash==70,"moose kill pays both players equally and only once")
+	var mauler=host.campaign.spawn_wolf(host.world.exterior_rally_point,false,false,100)
+	mauler.set_physics_process(false); mauler.position=Vector3(145,80,145); mauler._ensure_reaction()
+	guest.player.position=mauler.position+Vector3.BACK; host.coop.avatars[2].position=guest.player.position
+	host.coop.clock+=1; host.coop._process(.2)
+	mauler.hunted_hunter=host.coop.avatars[2]; mauler.behavior="maul"
+	check(host.coop.begin_remote_maul(mauler,host.coop.avatars[2]),"remote wolf struggle starts")
+	var maul_hp: float=mauler.health
+	guest.coop.send_to(1,"struggle_stab",[]); guest.coop.send_to(1,"struggle_stab",[])
+	check(is_equal_approx(maul_hp-mauler.health,10),"remote defensive stab deals ten damage and rejects repeated immediate requests")
+	guest.end_wolf_struggle(true)
+	check(host.coop.avatars[2].mauling==0 and mauler.reaction.down>=3,"remote escape releases attacker and applies three-second flinch")
 	for game in session.games:
 		game.coop.leave(); set_multiplayer(null,game.get_path())
 		for suffix in ["",".bak"]: DirAccess.remove_absolute(ProjectSettings.globalize_path(game.progress.save_path+suffix))

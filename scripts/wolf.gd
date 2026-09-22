@@ -560,6 +560,7 @@ void fragment() {
 		_style_coat(child)
 
 func damage(amount: float) -> void:
+	if game.coop.client(): return
 	_ensure_reaction()
 	if dead:
 		return
@@ -738,7 +739,9 @@ func _struggle_active() -> bool:
 func end_struggle(escaped: bool) -> void:
 	if dead:
 		return
-	_attack_cooldown = float(profile.attack_interval) * (.65 if escaped else .5)
+	if escaped:
+		_ensure_reaction(); reaction.down=maxf(reaction.down,3.0); reaction.flinch=.4
+	_attack_cooldown = maxf(3.0 if escaped else 0.0,float(profile.attack_interval) * (.65 if escaped else .5))
 	var player: Node3D = hunted_hunter if is_instance_valid(hunted_hunter) else game.get("player") as Node3D
 	_begin_retreat(player.position if player else position - global_basis.z, 0.65)
 

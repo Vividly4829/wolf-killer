@@ -17,16 +17,16 @@ func _ready() -> void:
 func review(reports: Array[Dictionary]) -> void:
 	if reports.is_empty(): return
 	var shot: Dictionary = reports.back()
-	if shot.get("species","") not in ["deer","duck","goose","mink","bear"]: return
+	if shot.get("species","") not in ["deer","moose","duck","goose","mink","bear"]: return
 	species = shot.species
 	for child in scene.get_children():
 		if child!=camera: child.free()
 	rods.clear()
-	var deer := species in ["deer","bear"]
+	var deer := species in ["deer","moose","bear"]
 	var bird := species in ["duck","goose"]
-	var height := .95 if deer else (.28 if bird else .15)
-	var length := 1.0 if species=="bear" else .65 if deer else (.27 if bird else .24)
-	var width := .36 if species=="bear" else .19 if deer else (.14 if bird else .06)
+	var height := 1.7 if species=="moose" else .95 if deer else (.28 if bird else .15)
+	var length := 1.1 if species=="moose" else 1.0 if species=="bear" else .65 if deer else (.27 if bird else .24)
+	var width := .45 if species=="moose" else .36 if species=="bear" else .19 if deer else (.14 if bird else .06)
 	var organs: Array = preload("res://scripts/wildlife_anatomy.gd").organs(species)
 	var head: Vector3 = organs[1].center
 	ellipsoid(Vector3(0,height-.10,0),Vector3(width*1.2,height*.27,length),material(Color(.08,.3,.9,.18)))
@@ -55,6 +55,12 @@ func review(reports: Array[Dictionary]) -> void:
 				var foot := Vector3(hip.x,.035,z)
 				rod(hip,knee,.022 if deer else .009); rod(knee,foot,.013 if deer else .006)
 				ellipsoid(foot,Vector3(.028,.025,.045) if deer else Vector3(.012,.012,.028),bone)
+	if species=="moose":
+		for side in [-1,1]:
+			var palm:=head+Vector3(side*.7,.5,-.15)
+			rod(head,palm,.045)
+			ellipsoid(palm,Vector3(.45,.045,.28),bone)
+			for i in 6: rod(palm+Vector3(side*(i-2)*.13,0,-.2),palm+Vector3(side*(i-2)*.13,.2,-.3),.016)
 	if species=="deer":
 		for side in [-1,1]:
 			var tip := head+Vector3(side*.25,.42,-.12)
@@ -68,12 +74,13 @@ func review(reports: Array[Dictionary]) -> void:
 		part.mesh=mesh; part.transform=pose; part.material_override=bone; scene.add_child(part)
 	for organ in organs: ellipsoid(organ.center,organ.radii,material(Color(1,.1,.15,.8) if shot.organs.has(organ.id) else Color(.1,.4,.8,.25)))
 	var beam := MeshInstance3D.new(); var shaft := CylinderMesh.new()
-	shaft.top_radius=.006; shaft.bottom_radius=.006; shaft.height=shot.entry.distance_to(shot.end)
+	shaft.top_radius=.016; shaft.bottom_radius=.016; shaft.height=shot.entry.distance_to(shot.end)
 	beam.mesh=shaft; beam.position=(shot.entry+shot.end)*.5
 	if shot.entry.distance_squared_to(shot.end) > .000001: beam.quaternion=Quaternion(Vector3.UP,(shot.end-shot.entry).normalized())
 	else: beam.visible=false
 	beam.material_override=material(Color("ffc977")); scene.add_child(beam)
-	var middle := .94 if deer else (.40 if species=="goose" else (.26 if species=="duck" else .15))
-	camera.size=3.0 if species=="bear" else 2.15 if deer else (1.0 if species=="goose" else .72)
+	if not shot.get("unhit",false): ellipsoid(shot.entry,Vector3.ONE*.04,material(Color("ff172e")))
+	var middle := 1.4 if species=="moose" else .94 if deer else (.40 if species=="goose" else (.26 if species=="duck" else .15))
+	camera.size=3.8 if species=="moose" else 3.0 if species=="bear" else 2.15 if deer else (1.0 if species=="goose" else .72)
 	camera.position=Vector3(0,middle,3) if front_view else Vector3(3,middle+.10,.2); camera.look_at(Vector3(0,middle,0))
 	get_child(0).render_target_update_mode=SubViewport.UPDATE_ONCE

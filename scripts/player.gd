@@ -231,6 +231,10 @@ func use_input_device(device: int) -> void:
 
 func _input(event: InputEvent) -> void:
 	if not is_instance_valid(game): return
+	if game.fast_travel and game.fast_travel.opened:
+		if event is InputEventJoypadButton and event.device==controller_device: pad_buttons[event.button_index]=event.pressed
+		if event is InputEventMouseButton and event.button_index==MOUSE_BUTTON_LEFT: _fire_trigger_down=false
+		game.fast_travel.input_event(event); get_viewport().set_input_as_handled(); return
 	var joy := event is InputEventJoypadButton or event is InputEventJoypadMotion
 	# Outside split screen, the last deliberately used device controls this hunter.
 	# Split screen keeps keyboard and controller ownership fixed.
@@ -303,6 +307,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			game.call("fire_weapon")
 
 func _physics_process(delta: float) -> void:
+	if is_instance_valid(game) and game.fast_travel and game.fast_travel.opened:
+		_velocity=Vector2.ZERO; is_sprinting=false; return
 	if is_instance_valid(game) and game.rituals and game.rituals.channeling():
 		_velocity=Vector2.ZERO; is_sprinting=false; return
 	if is_instance_valid(game) and controller_device < 0 and _fire_trigger_down and _weapon_spec().get("automatic",false): game.fire_weapon()
@@ -332,7 +338,7 @@ func _physics_process(delta: float) -> void:
 	is_sprinting = sprinting
 	aiming = aiming and not sprinting
 	if sprinting: _aim = 0.0
-	stamina = maxf(0.0, stamina - delta * 18.0 * game.rituals.factor("stamina") * (1.0 + leg_injury * 0.4)) if sprinting else minf(MAX_STAMINA, stamina + delta * 39.0 * (.38 if game.campaign and game.campaign.fever else 1.0) * (1.0 - leg_injury * 0.2))
+	stamina = maxf(0.0, stamina - delta * 18.0 * game.rituals.factor("stamina") * (1.0 + leg_injury * 0.4)) if sprinting else minf(MAX_STAMINA, stamina + delta * 39.0 * game.rituals.factor("stamina_regen") * (.38 if game.campaign and game.campaign.fever else 1.0) * (1.0 - leg_injury * 0.2))
 	var speed: float = (SPRINT_SPEED if sprinting else WALK_SPEED) * (1.0 - leg_injury * (0.45 if sprinting else 0.38))
 	if aiming:
 		speed = minf(speed, 1.65 * (1.0 - leg_injury * 0.3))
@@ -484,3 +490,14 @@ func poll_controller(delta: float) -> void:
 	if look.length()>.15:
 		yaw-=look.x*delta*2.4*(1-_aim*.4); pitch=clampf(pitch-look.y*delta*1.8,-1.48,1.48); _update_rotation()
 	if fire or (trigger and _weapon_spec().get("automatic",false)): game.fire_weapon()
+
+var struggle_knife: Node3D
+func stab_animation() -> void:
+	if not is_instance_valid(struggle_knife):
+		struggle_knife=preload("res://scripts/weapon_visual.gd").new()
+		camera.add_child(struggle_knife); struggle_knife.build(18)
+	struggle_knife.show(); struggle_knife.position=Vector3(.28,-.32,-.2); struggle_knife.rotation=Vector3(-.3,0,-.35)
+	var tween:=struggle_knife.create_tween()
+	tween.tween_property(struggle_knife,"position",Vector3(.04,-.17,-.92),.15).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tween.tween_property(struggle_knife,"position",Vector3(.28,-.32,-.2),.28)
+	tween.tween_callback(struggle_knife.hide)

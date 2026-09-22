@@ -165,7 +165,7 @@ func _process(delta: float) -> void:
 	replay.tick(delta,visible)
 	var shown: Array[Dictionary]=target_reports(displayed().reports)
 	var blast: bool=displayed().trajectories.any(func(path): return path.has("blast"))
-	wildlife.visible=not blast and not shown.is_empty() and str(shown.back().get("species","")) in ["deer","duck","goose","mink","bear"]
+	wildlife.visible=not blast and not shown.is_empty() and str(shown.back().get("species","")) in ["deer","moose","duck","goose","mink","bear"]
 	human.visible=not blast and not shown.is_empty() and str(shown.back().get("species","")) in ["hunter","raider","werewolf"]
 	xray.visible=not blast and not shown.is_empty() and str(shown.back().get("species","wolf"))=="wolf"
 	front_views[0].visible=xray.visible; front_views[1].visible=human.visible; front_views[2].visible=wildlife.visible

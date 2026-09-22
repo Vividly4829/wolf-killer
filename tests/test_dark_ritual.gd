@@ -10,7 +10,7 @@ func spawn(species: String,p: Vector3) -> Node3D:
 	if species in ["wolf","werewolf"]:
 		animal=game.WolfScript.new(); animal.configure(game,game.world.wolf_nav,1,55); game.add_child(animal); animal.position=p; animal._ensure_reaction()
 		if species=="werewolf": animal.make_werewolf()
-	elif species in ["deer","duck","goose","mink"]:
+	elif species in ["deer","moose","duck","goose","mink"]:
 		animal=preload("res://scripts/wildlife.gd").new(); animal.game=game; animal.species=species; game.add_child(animal); animal.position=p
 	else:
 		animal=(load("res://scripts/"+species+".gd") if species in ["legionary","musketeer"] else preload("res://scripts/campaign_threat.gd")).new()
@@ -65,7 +65,7 @@ func run() -> void:
 	check(not game.rituals.start(1,offering.get_instance_id()),"corpse cannot grant another boon")
 	for species in game.rituals.BOONS: game.rituals.grant(species,game.level+3)
 	check(is_equal_approx(game.player.get_reload_multiplier(),.75) and is_equal_approx(game.player.get_aim_spread_multiplier(),.7),"raider and musketeer boons affect weapon handling")
-	check(is_equal_approx(game.weapon_spec().damage,game.WeaponCatalog.weapon(game.current_weapon).damage*1.2),"wolf boon increases actual weapon damage")
+	check(is_equal_approx(game.weapon_spec().damage,game.WeaponCatalog.weapon(game.current_weapon).damage*2.0),"wolf boon increases actual weapon damage")
 	check(game.rituals.all_radar() and game.rituals.factor("sneak")==1.5 and game.rituals.factor("stamina")==.65 and game.rituals.factor("struggle")==1.35,"bird and movement boons expose distinct live modifiers")
 	game.affliction.infected_wave=5; game.level=11
 	for species in game.rituals.BOONS: game.rituals.grant(species,14)
@@ -73,7 +73,7 @@ func run() -> void:
 	check(is_equal_approx(game.maximum_health(),175),"moon blood stacks with lycanthropy and psychedelic")
 	game.affliction.psychedelic=false; game.health=100; game._apply_health_damage(10,false)
 	check(is_equal_approx(game.health,92),"bear boon reduces incoming damage")
-	game.level=14; check(not game.rituals.has_boon("deer") and game.rituals.factor("health")==1,"boons expire after three rounds")
+	game.level=14; check(game.rituals.has_boon("deer") and game.rituals.factor("health")==1.25,"boons persist without round expiry")
 	game.start_run(false); game.set_process(false); game.player.set_physics_process(false); game.campaign.set_process(false); game.rituals.set_process(false)
 	game.player.position=game.world.exterior_rally_point; game.begin_wave()
 	var target: Node3D=game.objective_targets()[0]; target.set_physics_process(false); target.damage(target.max_health*.95)
