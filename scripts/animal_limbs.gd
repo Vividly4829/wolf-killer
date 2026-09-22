@@ -78,7 +78,7 @@ func hit(zone: String,amount: float,force: float,point: Vector3,direction: Vecto
 	else:
 		animal.bleeding_rate=maxf(animal.bleeding_rate,animal.max_health*.012)
 		animal.damage(amount*.35)
-	return {"entry":animal.to_local(point),"end":animal.to_local(point+direction*.06),"organs":[],"zone":zone.to_upper()+(" / SEVERED" if severed.has(zone) else " / WOUNDED"),"species":"werewolf" if animal is IslandWolf else animal.species,"damage":before-animal.health,"calculated_damage":before-animal.health,"multiplier":(before-animal.health)/maxf(amount,.001),"fatal":animal.dead,"instant_fatal":false,"bleed":animal.bleeding_rate,"sever_threshold":limit}
+	return {"entry":animal.reaction.anatomy_transform().affine_inverse()*point,"end":animal.reaction.anatomy_transform().affine_inverse()*(point+direction*.06),"organs":[],"zone":zone.to_upper()+(" / SEVERED" if severed.has(zone) else " / WOUNDED"),"species":"werewolf" if animal is IslandWolf else animal.species,"damage":before-animal.health,"calculated_damage":before-animal.health,"multiplier":(before-animal.health)/maxf(amount,.001),"fatal":animal.dead,"instant_fatal":false,"bleed":animal.bleeding_rate,"sever_threshold":limit}
 func show_loss(zone: String,point: Vector3,direction: Vector3) -> void:
 	var data: Dictionary=parts[zone]
 	var radius: float=data.radius

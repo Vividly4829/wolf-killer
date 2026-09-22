@@ -17,6 +17,7 @@ const WEAPONS: Array[Dictionary] = WeaponCatalog.WEAPONS
 
 var controller_device := -1
 var split_session: Node
+var supernatural: Node
 var rituals: Node
 var mushrooms: Node3D
 var combat_fx: Node3D
@@ -96,7 +97,9 @@ var coop: Node
 
 func weapon_spec() -> Dictionary:
 	var spec: Dictionary=WeaponCatalog.secondary_weapon() if current_weapon == 9 and lemat_secondary else WeaponCatalog.weapon(current_weapon)
-	if rituals: spec.damage *= rituals.factor("damage")
+	if rituals:
+		spec.damage *= rituals.factor("damage")
+		spec.flat_damage=rituals.flat_damage()
 	return spec
 
 func current_ammo() -> int:
@@ -177,6 +180,7 @@ func _ready() -> void:
 	affliction.game = self
 	add_child(affliction)
 	rituals=preload("res://scripts/dark_ritual.gd").new(); rituals.game=self; add_child(rituals)
+	supernatural=preload("res://scripts/supernatural.gd").new(); supernatural.game=self; add_child(supernatural)
 	mushrooms = preload("res://scripts/mushrooms.gd").new(); mushrooms.game = self; add_child(mushrooms)
 	var canvas := CanvasLayer.new()
 	add_child(canvas)
@@ -687,7 +691,7 @@ func quick_throw() -> bool:
 	if int(copy_magazines[best].loaded)>0: copy_magazines[best].loaded-=1
 	else: reserve_ammo[id]-=1
 	if best==current_slot: ammo[id]=int(copy_magazines[best].loaded)
-	var spec:=WeaponCatalog.weapon(id); spec.damage*=rituals.factor("damage"); spec.spread=float(spec.spread)*.65
+	var spec:=WeaponCatalog.weapon(id); spec.damage*=rituals.factor("damage"); spec.flat_damage=rituals.flat_damage(); spec.spread=float(spec.spread)*.65
 	quick_throw_left=.24
 	shot_review.begin_shot(true)
 	var origin: Vector3=player.camera.global_position
@@ -781,7 +785,7 @@ func fire_ballistic(origin: Vector3,direction: Vector3,weapon: Dictionary,review
 
 func damage_at_distance(weapon: Dictionary, distance: float) -> float:
 	var fraction := clampf((distance - float(weapon.effective_range)) / maxf(1.0, float(weapon.range) - float(weapon.effective_range)), 0.0, 1.0)
-	return float(weapon.damage) * lerpf(1.0, float(weapon.minimum_damage), fraction)
+	return float(weapon.damage) * lerpf(1.0, float(weapon.minimum_damage), fraction)+float(weapon.get("flat_damage",0))
 
 func resolve_weapon_hit(hit: Dictionary, direction: Vector3, weapon: Dictionary, distance: float, review_serial: int = -1) -> void:
 	if not is_playing() or hit.is_empty():
@@ -796,7 +800,10 @@ func resolve_weapon_hit(hit: Dictionary, direction: Vector3, weapon: Dictionary,
 		var report: Dictionary = preload("res://scripts/human_xray.gd").trace(victim.to_local(hit.position),(victim.global_basis.inverse()*direction).normalized(),base,float(weapon.get("penetration",.7))*clampf(base/float(weapon.damage),.35,1))
 		var fatal_vital: bool = report.organs.has("brain") or report.organs.has("heart")
 		report.instant_fatal = fatal_vital
-		report.damage = coop.friendly_hit(id,100000.0 if fatal_vital else float(report.calculated_damage))
+		report.calculated_damage=preload("res://scripts/vital_damage.gd").resolve(report.organs,float(report.calculated_damage))
+		report.damage = coop.friendly_hit(id,preload("res://scripts/vital_damage.gd").resolve(report.organs,float(report.calculated_damage)))
+		if fatal_vital: report.vital_cap=900 if report.organs.has("heart") else 450
+		report.instant_fatal=fatal_vital and (health<=0 if id==1 else victim.health<=0)
 		report.target_uid = victim.get_instance_id()
 		report.target_transform=target_pose
 		report.body_depth_m=report.entry.distance_to(report.end)
@@ -810,7 +817,7 @@ func resolve_weapon_hit(hit: Dictionary, direction: Vector3, weapon: Dictionary,
 	var hit_zone: String = str(collider.get_meta("hit_zone", "body"))
 	var target: Node = collider.get_meta("wolf") if collider.has_meta("wolf") else null
 	if is_instance_valid(target) and not target.dead:
-		var target_pose: Transform3D=target.global_transform
+		var target_pose: Transform3D=target.reaction.anatomy_transform() if target.get("reaction") else target.global_transform
 		if target is IslandWolf: target_pose.basis=target_pose.basis.scaled_local(Vector3.ONE*target.size_scale)
 		var report: Dictionary = target.receive_ballistic_hit(damage_at_distance(weapon, distance), hit.position, direction, hit_zone, float(weapon.limb_force),float(weapon.get("vital_bonus",1.0)),float(weapon.get("penetration",.7))*clampf(damage_at_distance(weapon,distance)/float(weapon.damage),.35,1))
 		report.target_uid=target.get_instance_id()
@@ -1027,7 +1034,7 @@ func _update_struggle(delta: float) -> void:
 		if coop.client(): coop.send_to(1,"struggle_stab",[])
 		else:
 			var victim:=struggle_wolf
-			victim.damage(10)
+			victim.damage(10+rituals.flat_damage())
 			gore.blood_burst(victim.position+Vector3.UP*.8,-player.camera.global_basis.z,.45)
 		if not is_struggling(): return
 	if fighting:
@@ -1073,6 +1080,7 @@ func interaction_prompt() -> String:
 	if health<=0 or is_struggling(): return ""
 	var key := "Y" if controller_device>=0 else "E"
 	if fast_travel.nearby(player.position)>=0: return "[ %s ] FAST TRAVEL"%key
+	if supernatural.nearby(): return "[ %s ] SELL YOUR SOUL FOR POWER / HALF MAX HP FOR 3 RITUAL STACKS"%key
 	if rituals.channeling(): return "DARK SACRIFICE / Hold still"
 	var offering: Node3D=rituals.nearest()
 	if offering: return "[ %s ] SACRIFICE %s / %s" % [key,rituals.kind(offering).to_upper(),rituals.BOONS[rituals.kind(offering)].name]
@@ -1104,6 +1112,10 @@ func drink_coffee() -> void:
 	else: coop.serve_coffee(1,cabin)
 
 func interact_shop() -> void:
+	if is_playing() and health>0 and not is_struggling() and supernatural.nearby():
+		if coop.client(): coop.send_to(1,"devil_deal",[])
+		else: supernatural.deal(1)
+		return
 	if is_playing() and health>0 and fast_travel.nearby(player.position)>=0:
 		fast_travel.open_menu(); return
 	if rituals.channeling(): return
@@ -1346,7 +1358,7 @@ func radar_animals() -> Array[Node3D]:
 	if coop.client(): candidates.append_array(coop.replicas.values())
 	for animal in candidates:
 		if not is_instance_valid(animal) or animal.is_queued_for_deletion() or animal.dead or found.has(animal): continue
-		if (rituals.all_radar() and radar_dangerous(animal)) or animal.position.distance_to(player.position)<=75: found.append(animal)
+		if (rituals.all_radar() and radar_dangerous(animal)) or animal.position.distance_to(player.position)<=75+75*rituals.count("goose"): found.append(animal)
 	return found
 
 func radar_color(animal: Node3D) -> Color:
@@ -1383,4 +1395,4 @@ func start_split() -> void:
 	session.launch.call_deferred(self)
 
 func radar_dangerous(animal: Node3D) -> bool:
-	return animal is IslandWolf or str(animal.get("species")) in ["moose","bear","raider","legionary","musketeer"] or animal.get("alerted")==true
+	return animal is IslandWolf or str(animal.get("species")) in ["moose","bear","raider","legionary","musketeer","angel","devil"] or animal.get("alerted")==true

@@ -145,10 +145,13 @@ func detonate() -> void:
 		var exposed := blast_visible(center)
 		if d<radius*1.5: blast_targets.append({"position":center,"blocked":not exposed,"inside":d<=radius,"species":animal.get("species") if animal.get("species")!=null else "wolf"})
 		if d>radius or not exposed: continue
-		var amount: float = float(spec.damage)*(1-d/radius)
+		var amount: float = float(spec.damage)*(1-d/radius)+float(spec.get("flat_damage",0))
 		var before: float = animal.health
+		var previous_shooter: int=game.coop.shooter
+		game.coop.shooter=shooter_peer
 		if animal.is_in_group("campaign_threats"): animal.damage(amount,true)
 		else: animal.damage(amount)
+		game.coop.shooter=previous_shooter
 		var report := {"entry":Vector3.ZERO,"end":Vector3.UP*.4,"organs":[],"zone":"BLAST","species":animal.get("species") if animal.get("species")!=null else "wolf","damage":before-animal.health,"calculated_damage":amount,"base_damage":spec.damage,"range_factor":1-d/radius,"multiplier":1.0,"distance":d,"weapon":spec.name}
 		if report.species in ["legionary","musketeer"]: report.species="raider"
 		report.target_uid=animal.get_instance_id()
@@ -163,7 +166,7 @@ func detonate() -> void:
 		var center: Vector3=hunter.position+Vector3.UP*.8
 		var d:=global_position.distance_to(center)
 		if d>radius or not blast_visible(center): continue
-		var amount: float=float(spec.damage)*(1-d/radius)
+		var amount: float=float(spec.damage)*(1-d/radius)+float(spec.get("flat_damage",0))
 		if hunter==game.player: game.damage_player(amount)
 		else:
 			game.coop.shooter=0; game.coop.friendly_hit(hunter.peer_id,amount); game.coop.shooter=1

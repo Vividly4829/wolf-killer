@@ -85,7 +85,7 @@ func capture_nearby() -> Array[Dictionary]:
 		if animal is IslandWolf:
 			pose.basis=pose.basis.scaled_local(Vector3.ONE*animal.size_scale)
 			if animal.werewolf: species="werewolf"
-		if species in ["legionary","musketeer"]: species="raider"
+		if species in ["legionary","musketeer","angel","devil"]: species="raider"
 		records.append({"target_uid":target_id,"target_transform":pose,"species":species,"distance_to_line":distance,"organs":[],"entry":Vector3.ZERO,"end":Vector3.UP*.001,"unhit":true})
 	records.sort_custom(func(a,b): return a.distance_to_line<b.distance_to_line)
 	return records.slice(0,8)
@@ -166,7 +166,7 @@ func _process(delta: float) -> void:
 	var shown: Array[Dictionary]=target_reports(displayed().reports)
 	var blast: bool=displayed().trajectories.any(func(path): return path.has("blast"))
 	wildlife.visible=not blast and not shown.is_empty() and str(shown.back().get("species","")) in ["deer","moose","duck","goose","mink","bear"]
-	human.visible=not blast and not shown.is_empty() and str(shown.back().get("species","")) in ["hunter","raider","werewolf"]
+	human.visible=not blast and not shown.is_empty() and str(shown.back().get("species","")) in ["hunter","raider","werewolf","angel","devil"]
 	xray.visible=not blast and not shown.is_empty() and str(shown.back().get("species","wolf"))=="wolf"
 	front_views[0].visible=xray.visible; front_views[1].visible=human.visible; front_views[2].visible=wildlife.visible
 func close_review() -> void:
@@ -216,7 +216,10 @@ func _draw() -> void:
 		label_at(295,("%.1f ESTIMATED DAMAGE" % calculated) if target_review else damage_text(hits),Color("ff4545"),24)
 		if not target_review:
 			draw_string(font,Vector2(266,293),"%.0f cm tissue"%(float(shot.get("body_depth_m",shot.entry.distance_to(shot.end)))*100),HORIZONTAL_ALIGNMENT_LEFT,132,10,Color("ffb3a8"))
-		label_at(315,"%.1f base × %.2f range × %.2f zone = %.1f calculated" % [shot.get("base_damage",0.0),shot.get("range_factor",1.0),shot.multiplier,calculated],Color("ffb3a8"),11)
+		if shot.has("vital_cap"):
+			label_at(315,"VITAL IMPACT / %d HP cap / %.1f calculated"%[shot.vital_cap,calculated],Color("ffb3a8"),11)
+		else:
+			label_at(315,"%.1f base × %.2f range × %.2f zone = %.1f calculated" % [shot.get("base_damage",0.0),shot.get("range_factor",1.0),shot.multiplier,calculated],Color("ffb3a8"),11)
 	label_at(335,"%s older / %d of %d / %s" % ["D-pad down" if game.controller_device>=0 else "X browse / double X close",selected+1,history.size(),"FATAL VITAL HIT" if not hits.is_empty() and hits.back().get("instant_fatal",false) else "combat continues"],Color("91acb9"),10)
 	if not hits.is_empty() and not blast:
 		draw_string(font,Vector2(14,66),"SIDE",HORIZONTAL_ALIGNMENT_LEFT,-1,10,Color("91acb9"))
@@ -259,7 +262,7 @@ func _draw_trajectory(paths: Array[Dictionary],miss: bool) -> void:
 	var hit_list: Array[Dictionary]=target_reports(displayed().reports)
 	if not hit_list.is_empty():
 		var hit: Dictionary=hit_list[0]
-		var helper: Control=human if hit.get("species","wolf") in ["hunter","raider","werewolf"] else xray if hit.get("species","wolf")=="wolf" else wildlife
+		var helper: Control=human if hit.get("species","wolf") in ["hunter","raider","werewolf","angel","devil"] else xray if hit.get("species","wolf")=="wolf" else wildlife
 		var pose: Transform3D=hit.get("target_transform",Transform3D.IDENTITY)
 		var start: Vector3=shot.points[0]
 		var direction: Vector3=shot.direction

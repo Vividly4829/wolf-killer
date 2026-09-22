@@ -1,7 +1,8 @@
 extends Node
-## Three-player ENet co-op. The host owns waves, animals and projectile hit tests.
+## Four-player ENet co-op. The host owns waves, animals and projectile hit tests.
 const PORT := 27896
 var port := PORT
+var internet: Node
 const Avatar = preload("res://scripts/coop_avatar.gd")
 var game: Node3D
 var slots: Dictionary = {}
@@ -32,8 +33,10 @@ var awaiting_spawn := false
 var join_deadline := 0
 var connection_error := ""
 var requested_host := false
+var internet_host_requested:=false
 func _ready() -> void:
 	name = "Coop"
+	internet=preload("res://scripts/internet_invite.gd").new(); internet.coop=self; add_child(internet)
 	multiplayer.peer_connected.connect(_peer_connected)
 	multiplayer.peer_disconnected.connect(_peer_left)
 	multiplayer.connected_to_server.connect(_connected)
@@ -72,17 +75,18 @@ func setup_local(partner: Node,id: int) -> void:
 	status="LOCAL TWO-PLAYER / FRIENDLY FIRE ON"
 	local_area=Avatar.hitbox(game.player,id)
 func host_session() -> void:
+	internet_host_requested=false
 	if is_instance_valid(game.split_session): return
 	leave()
 	requested_host=true
 	var peer := ENetMultiplayerPeer.new()
-	var result := peer.create_server(port,2)
+	var result := peer.create_server(port,3)
 	if result!=OK:
 		fail_connection("Could not host on UDP %d: %s. Close another hosted game before retrying." % [port,error_string(result)])
 		return
 	multiplayer.multiplayer_peer = peer
 	active = true
-	status = "HOST / UDP %d / 1 OF 3" % port
+	status = "HOST / UDP %d / 1 OF 4" % port
 	local_area = Avatar.hitbox(game.player,1)
 	game.start_from_menu()
 func join_session(address: String) -> void:
@@ -90,6 +94,8 @@ func join_session(address: String) -> void:
 	leave()
 	requested_host=false
 	join_address=address.strip_edges()
+	if join_address.begins_with("https://") or join_address.begins_with("wss://"):
+		internet.join_invite(join_address); return
 	if join_address.is_empty():
 		fail_connection("Enter the host's IP address before joining.")
 		return
@@ -106,6 +112,10 @@ func join_session(address: String) -> void:
 	multiplayer.multiplayer_peer = peer
 	active = true
 func leave() -> void:
+	if internet: internet.stop()
+	multiplayer.auth_callback=Callable()
+	multiplayer.refuse_new_connections=false
+	multiplayer.server_relay=true
 	local_partner=null; local_peer_id=0; local_sender=0
 	active = false
 	reward_serial=0; received_reward_serial=-1
@@ -124,14 +134,16 @@ func leave() -> void:
 	status = "Solo"
 	previous_wave = -1
 func _failed() -> void:
-	fail_connection("Connection to %s ended. Check that the host is running, has a free player slot, and accepts UDP %d." % [join_address,port])
+	fail_connection("Connection to %s ended. Check that the host is still running and has a free player slot (LAN port %d)." % [join_address,port])
 func fail_connection(message: String) -> void:
 	leave()
 	connection_error=message
 	status=message
 	game.set_mode("connection_error")
 func retry_connection() -> void:
-	if requested_host: host_session()
+	if requested_host:
+		if internet_host_requested: internet.host()
+		else: host_session()
 	else: join_session(join_address)
 func _connected() -> void:
 	status = "CONNECTED / WAITING FOR HOST SPAWN"
@@ -141,6 +153,8 @@ func _connected() -> void:
 	send_to(1,"ready_player",[])
 func _peer_connected(id: int) -> void:
 	if not server(): return
+	if avatars.size()>=3:
+		multiplayer.disconnect_peer(id); return
 	var avatar = Avatar.new()
 	avatar.peer_id = id
 	var slot := 1
@@ -151,7 +165,7 @@ func _peer_connected(id: int) -> void:
 	avatar.position = spawn_point(id)
 	game.add_child(avatar)
 	avatars[id] = avatar
-	status = "LOCAL TWO-PLAYER / FRIENDLY FIRE ON" if local_peer_id>0 else "HOST / UDP %d / %d OF 3" % [port,avatars.size()+1]
+	status = "LOCAL TWO-PLAYER / FRIENDLY FIRE ON" if local_peer_id>0 else ("INTERNET / %d OF 4"%(avatars.size()+1) if not internet.invite.is_empty() else "HOST / UDP %d / %d OF 4" % [port,avatars.size()+1])
 func _peer_left(id: int) -> void:
 	if avatars.has(id): release_remote_maul(id)
 	if avatars.has(id): avatars[id].queue_free(); avatars.erase(id)
@@ -239,6 +253,7 @@ func host_started() -> void:
 	for id in avatars:
 		if game.session_start_money>=0 and game.get_meta("applying_start_wallet",false): send_to(id,"starting_wallet",[game.session_start_money])
 		avatars[id].remove_meta("ritual_boons")
+		avatars[id].remove_meta("soul_cost")
 		avatars[id].remove_meta("infected_wave")
 		avatars[id].set_beast(false)
 		avatars[id].remove_meta("psychedelic")
@@ -288,7 +303,7 @@ func anyone_outside() -> bool:
 	return false
 func _process(delta: float) -> void:
 	if awaiting_spawn and Time.get_ticks_msec()>join_deadline:
-		fail_connection("The host did not finish joining within 30 seconds. Check the IP address, free player slots and UDP %d, then retry." % port)
+		fail_connection("The host did not finish joining within 30 seconds. Ask for a fresh invite or check the LAN address and free slots (port %d)." % port)
 		return
 	if not active: return
 	if is_instance_valid(local_area): local_area.collision_layer = 2 if game.health>0 else 0
@@ -296,7 +311,7 @@ func _process(delta: float) -> void:
 	if clock-last_snapshot<.08: return
 	last_snapshot = clock
 	if client():
-		if local_peer_id>0 or multiplayer.multiplayer_peer.get_connection_status()==MultiplayerPeer.CONNECTION_CONNECTED:
+		if not awaiting_spawn and (local_peer_id>0 or multiplayer.multiplayer_peer.get_connection_status()==MultiplayerPeer.CONNECTION_CONNECTED):
 			send_to(1,"pose",[game.player.position,game.player.yaw,game.player.is_crouching,game.player.get_noise_level(),game.health,game.current_weapon,game.player.is_sprinting,generation])
 		return
 	check_team_wipe()
@@ -311,9 +326,9 @@ func _process(delta: float) -> void:
 	for wolf in game.wolves+game.nodes_in_group("wolf_corpses"):
 		animals.append({"id":wolf.get_instance_id(),"limbs":wolf.limbs.snapshot() if wolf.limbs else {},"p":wolf.position,"yaw":wolf.rotation.y,"health":wolf.health,"seed":int(wolf.profile.profile_seed),"boss":wolf.werewolf,"mission":wolf.get_meta("mission",false),"type":"wolf","move":wolf._velocity.length(),"max_health":wolf.max_health,"behavior":wolf.behavior,"injuries":wolf.leg_injuries,"severed":wolf.severed_legs,"side":wolf.reaction.side if wolf.reaction else 1.0,"alerted":wolf.alerted,"dead":wolf.dead,"down":wolf.reaction.down if wolf.reaction else 0.0,"flinch":wolf.reaction.flinch if wolf.reaction else 0.0})
 	for animal in game.nodes_in_group("wildlife"):
-		animals.append({"id":animal.get_instance_id(),"limbs":animal.limbs.snapshot(),"max_health":animal.max_health,"p":animal.position,"yaw":animal.rotation.y,"health":animal.health,"type":animal.species,"bleed":animal.bleeding_rate,"fear":animal.fear_left,"alerted":animal.alerted,"move":animal.velocity.length(),"aquatic":animal.aquatic,"dead":animal.dead,"down":animal.reaction.down,"flinch":animal.reaction.flinch})
+		animals.append({"id":animal.get_instance_id(),"limbs":animal.limbs.snapshot(),"max_health":animal.max_health,"p":animal.position,"yaw":animal.rotation.y,"health":animal.health,"type":animal.species,"bleed":animal.bleeding_rate,"fear":animal.fear_left,"alerted":animal.alerted,"move":animal.velocity.length(),"aquatic":animal.aquatic,"dead":animal.dead,"down":animal.reaction.down,"flinch":animal.reaction.flinch,"side":animal.reaction.side})
 	for actor in game.nodes_in_group("campaign_threats"):
-		animals.append({"id":actor.get_instance_id(),"limbs":actor.limbs.snapshot() if actor.limbs else {},"p":actor.position,"yaw":actor.rotation.y,"health":actor.health,"type":actor.species,"weapon":actor.raider_weapon,"dead":actor.dead,"mission":actor.get_meta("mission",false),"down":actor.reaction.down,"flinch":actor.reaction.flinch,"move":2.8 if not actor.route.is_empty() else 0.0,"alerted":actor.alerted,"reload":actor.cooldown>1.0,"attack":actor.species=="legionary" and actor.cooldown>.85})
+		animals.append({"id":actor.get_instance_id(),"limbs":actor.limbs.snapshot() if actor.limbs else {},"p":actor.position,"yaw":actor.rotation.y,"health":actor.health,"max_health":actor.max_health,"type":actor.species,"weapon":actor.raider_weapon,"dead":actor.dead,"mission":actor.get_meta("mission",false),"down":actor.reaction.down,"flinch":actor.reaction.flinch,"side":actor.reaction.side,"move":2.8 if not actor.route.is_empty() else 0.0,"alerted":actor.alerted,"reload":actor.cooldown>1.0,"attack":actor.species=="legionary" and actor.cooldown>.85})
 	var projectiles: Array = []
 	for bolt in game.nodes_in_group("player_bolts")+game.nodes_in_group("enemy_bolts"):
 		projectiles.append({"id":bolt.get_instance_id(),"p":bolt.position,"v":bolt.velocity,"type":bolt.spec.id,"fuse":maxf(0,float(bolt.spec.get("fuse",0))-float(bolt.get("age"))) if bolt.spec.get("explosive",false) and not bolt.spec.get("launcher",false) else -1.0})
@@ -396,8 +411,8 @@ func state(hunters: Array,animals: Array,wave: int,mode: String,waiting: bool,pe
 			if animal.type=="wolf":
 				node = preload("res://scripts/wolf.gd").new()
 				node.configure(game,game.world.wolf_nav,mini(wave,12),int(animal.seed))
-			elif animal.type in ["bear","raider","legionary","musketeer"]:
-				node=preload("res://scripts/musketeer.gd").new() if animal.type=="musketeer" else preload("res://scripts/legionary.gd").new() if animal.type=="legionary" else preload("res://scripts/campaign_threat.gd").new()
+			elif animal.type in ["bear","raider","legionary","musketeer","angel","devil"]:
+				node=preload("res://scripts/supernatural_actor.gd").new() if animal.type in ["angel","devil"] else preload("res://scripts/musketeer.gd").new() if animal.type=="musketeer" else preload("res://scripts/legionary.gd").new() if animal.type=="legionary" else preload("res://scripts/campaign_threat.gd").new()
 				node.game=game; node.species=animal.type
 				node.raider_weapon=int(animal.get("weapon",21))
 			else:
@@ -420,7 +435,7 @@ func state(hunters: Array,animals: Array,wave: int,mode: String,waiting: bool,pe
 			node.model.get_child(0).set_process(not node.dead)
 		if animal.type=="musketeer": node.model.get_child(0).reloading=animal.get("reload",false)
 		if animal.type=="wolf" and node.werewolf: node.model.set_process(not node.dead)
-		if animal.type not in ["wolf","bear","raider","legionary","musketeer"]:
+		if animal.type not in ["wolf","bear","raider","legionary","musketeer","angel","devil"]:
 			node.aquatic = animal.get("aquatic",false)
 			if animal.get("bleed",0)>0 and not node.aquatic and clock-float(node.get_meta("last_trail",-10))>.55:
 				game.gore.blood_pool(node.position,.13)
@@ -480,6 +495,7 @@ func shoot(origin: Vector3,direction: Vector3,weapon: int,serial: int,secondary:
 	if clock-float(last_shot.get(id,-100)) < float(spec.interval)*.9: return
 	if game.rituals.tasks.has(id): return
 	spec.damage *= game.rituals.factor("damage",id)
+	spec.flat_damage=game.rituals.flat_damage(id)
 	spec.spread *= game.rituals.factor("accuracy",id)
 	last_shot[id] = clock
 	shooter = id
@@ -616,7 +632,8 @@ func connected_peers() -> Array[int]:
 	var result: Array[int] = []
 	if not active: return result
 	var transport := multiplayer.multiplayer_peer as ENetMultiplayerPeer
-	if not transport: return result
+	if not transport:
+		result.assign(multiplayer.get_peers()); return result
 	for id in multiplayer.get_peers():
 		var peer := transport.get_peer(id)
 		if peer and peer.get_state()==ENetPacketPeer.STATE_CONNECTED: result.append(id)
@@ -638,7 +655,7 @@ func grant_loot(weapon: int) -> void:
 
 func avatar_maximum(avatar: Node3D) -> float:
 	var wave: int = avatar.get_meta("infected_wave",-1)
-	return (200.0 if wave>=0 and game.level>(floori(wave/5.0)+1)*5 else 100.0) * (.7 if avatar.get_meta("psychedelic",false) else 1.0) * game.rituals.factor("health",avatar.peer_id)
+	return (200.0 if wave>=0 and game.level>(floori(wave/5.0)+1)*5 else 100.0) * (.7 if avatar.get_meta("psychedelic",false) else 1.0) * game.rituals.factor("health",avatar.peer_id)*pow(.5,int(avatar.get_meta("soul_cost",0)))
 
 func any_living() -> bool:
 	if game.health>0: return true
@@ -705,7 +722,9 @@ func apply_animal_life(node: Node3D, data: Dictionary) -> void:
 	if not is_instance_valid(node.reaction):
 		node.reaction=preload("res://scripts/animal_reaction.gd").new()
 		node.reaction.animal=node; node.add_child(node.reaction)
+	var prior_health: float=node.health
 	node.health=maxf(0,float(data.health))
+	if node.health<prior_health-.1: node.reaction.call_deferred("show_health")
 	if node.get("max_health")!=null: node.max_health=float(data.get("max_health",node.max_health))
 	var died: bool=bool(data.get("dead",false)) or node.health<=0
 	if died and not node.dead:
@@ -743,7 +762,7 @@ func quick_throw_shot(origin: Vector3,direction: Vector3,weapon: int,serial: int
 	if game.rituals.tasks.has(id): return
 	last_quick_throw[id]=clock
 	var bolt=preload("res://scripts/crossbow_bolt.gd").new(); game.add_child(bolt)
-	var spec: Dictionary=preload("res://scripts/weapon_catalog.gd").weapon(weapon); spec.damage*=game.rituals.factor("damage",id)
+	var spec: Dictionary=preload("res://scripts/weapon_catalog.gd").weapon(weapon); spec.damage*=game.rituals.factor("damage",id); spec.flat_damage=game.rituals.flat_damage(id)
 	bolt.launch(game,origin+direction.normalized()*.24,direction.normalized(),spec)
 	bolt.shooter_peer=id; bolt.review_serial=serial
 
@@ -818,7 +837,7 @@ func struggle_stab() -> void:
 	var victim=instance_from_id(hunter.mauling)
 	if not is_instance_valid(victim) or victim.dead or victim.position.distance_to(hunter.position)>4: return
 	hunter.set_meta("last_stab",clock)
-	var old:=shooter; shooter=id; victim.damage(10); shooter=old
+	var old:=shooter; shooter=id; victim.damage(10+game.rituals.flat_damage(id)); shooter=old
 	game.gore.blood_burst(victim.position+Vector3.UP*.8,Vector3.UP,.45)
 	if victim.dead or victim.reaction.incapacitated(): release_remote_maul(id)
 
@@ -827,3 +846,13 @@ func travel_request(destination: int) -> void:
 	if server(): game.fast_travel.travel(sender_id(),destination)
 @rpc("authority","reliable")
 func travel_arrived(destination: int) -> void: game.fast_travel.arrived(destination)
+
+@rpc("any_peer","reliable")
+func devil_deal() -> void:
+	if server(): game.supernatural.deal(sender_id())
+@rpc("authority","reliable")
+func soul_changed(cost: int) -> void:
+	game.supernatural.soul_cost=cost
+	game.health=minf(game.health,game.maximum_health())
+@rpc("authority","reliable")
+func supernatural_notice(message: String) -> void: game.show_notice(message,8)

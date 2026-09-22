@@ -95,7 +95,7 @@ func load_shot(entry: Dictionary,restart: bool=false) -> void:
 		if near_path: targets[record.target_uid]=[record]
 	for hits in targets.values():
 		var report: Dictionary=hits[0]; var species: String=report.get("species","wolf")
-		var script: String="human_xray" if species in ["hunter","raider","werewolf"] else "wolf_xray" if species=="wolf" else "wildlife_xray"
+		var script: String="human_xray" if species in ["hunter","raider","werewolf","angel","devil"] else "wolf_xray" if species=="wolf" else "wildlife_xray"
 		var helper=load("res://scripts/"+script+".gd").new(); helper.visible=false; add_child(helper)
 		var typed_hits: Array[Dictionary]=[]; typed_hits.assign(hits); helper.review(typed_hits)
 		var body: Node3D=helper.scene; body.reparent(content)

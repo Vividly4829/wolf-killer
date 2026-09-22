@@ -45,6 +45,13 @@ static func weapon(index: int) -> Dictionary:
 	var result: Dictionary = DEFAULTS.duplicate(true)
 	result.merge(WEAPONS[clampi(index, 0, WEAPONS.size() - 1)], true)
 	if is_gun(index): result.reload=float(result.reload)/3.0
+	# Relative mechanical dispersion: smoothbores are substantially less precise.
+	# Historical sources and the gameplay interpretation are in qa/accuracy-notes.md.
+	var rifle_spreads: Dictionary={2:.005,13:.0045,14:.0035,15:.0025,16:.006,29:.003}
+	if rifle_spreads.has(index): result.spread=rifle_spreads[index]
+	if index==0: result.spread=.025
+	if index==4: result.spread=.035
+	result.barrel="Rifled" if index in [2,7,8,9,10,11,12,13,14,15,16,27,28,29,32,33] else "Smoothbore" if index in [0,1,4,5,6,17,30,31] else "Special"
 	result.penetration = 1.15 if index in [14,15,26,29,30] else (.42 if str(result.family)=="sidearm" else .70)
 	if int(result.pellets)>1: result.penetration=.28
 	if index==18: result.penetration=.22
@@ -58,6 +65,7 @@ static func weapon(index: int) -> Dictionary:
 		result.sight_zero=20.0
 		result.description="Quiet hunting bow. Brass bead sighted at 20 metres. Aim higher beyond that and lead moving targets; precise vital hits reward patience."
 	if result.get("flame",false): result.penetration = 0.01
+	result.accuracy_degrees=rad_to_deg(float(result.spread))
 	return result
 
 static func secondary_weapon() -> Dictionary:

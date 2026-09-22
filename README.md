@@ -226,11 +226,11 @@ Solo play pauses when it loses focus. In multiplayer, the world continues while 
 
 
 
-## Three-player co-op
+## Four-player internet co-op
 
 
 
-Choose **Host 3 Player**, or enter the host address and choose **Join**. Everyone needs this game version. Use the host computer’s local address on a LAN. Over the internet, the host needs reachable **UDP port 27896**, usually with a router port-forward/firewall rule, or a shared VPN. There is no public matchmaking service. Three separate local processes have been tested; a public-internet session has not.
+Choose **HOST INTERNET / 4 PLAYERS**. The first host downloads a verified 55 MB Cloudflare helper. The game copies an invite link when ready; friends paste the complete link into **JOIN**. The pause menu can copy it again. Keep the host running; links expire when hosting stops. No account, inbound firewall rule, port forwarding or router configuration is required. Everyone needs the same game version. This uses Cloudflare Quick Tunnels, a free **experimental/playtest service without an uptime guarantee**. An external service outage can prevent a session; retry hosting for a new link. Four game processes were tested through the public TLS relay, including shared animal health, deaths and ritual stacks; they ran on one PC, not four separate household connections.
 
 
 
@@ -437,7 +437,7 @@ Choose **LOCAL SPLIT SCREEN / 2 PLAYERS**. Both hunters start immediately in the
 
 Player 2 retains a separate saved wallet (`progress_local_controller.cfg`). Each hunter has independent inventory, injuries, X-ray and a building assignment. Friendly fire, shared objectives, survivor completion, round revival and team-wipe restart remain active. The views exchange gameplay state directly inside the game process, without network sockets. A controller can be connected after starting; player 2's view remains ready and displays a connection reminder.
 
-Split screen is strictly local and cannot host or join online players. **HOST 3-PLAYER CO-OP** and **JOIN** remain separate, single-local-player online modes.
+Split screen is strictly local and cannot host or join online players. **HOST INTERNET / 4 PLAYERS** and **JOIN** remain separate, single-local-player online modes.
 
 Xbox controls work in solo and online play as well as split screen. Outside split screen, pressing a controller button or moving a stick activates that controller; using a keyboard key or mouse button switches back. Disconnecting the controller restores keyboard control. Split screen keeps the upper keyboard hunter and lower controller hunter separate.
 
@@ -583,31 +583,44 @@ Animals and enemy NPCs with **more than 0 HP and at most 7% of maximum HP** beco
 
 Approach within 3 metres with a clear line of sight and press **E / controller Y**. A four-second ritual locks movement and firing, draws a rotating red pentagram and rising sparks, pulses red lighting and plays original ominous music. Taking damage, moving away, losing the victim or changing rounds interrupts it. The host validates co-op rituals and prevents two players claiming the same victim.
 
-A completed sacrifice counts as a normal kill for mission progress and rewards. Only the performer receives its boon. Boons are **permanent for the run** without round expiry. Different types stack; repeating a type does not multiply it again. They survive cabin rests and clear on a new run. Permanent status names appear on both solo and split-screen HUDs.
+A completed sacrifice counts as a normal kill for mission progress and rewards. Only the performer receives its boon. Boons are **permanent for the run** without round expiry. Different and repeated types stack. The HUD shows ×N. Bonus increases add per stack; reductions multiply (two Iron Hide stacks take 0.8 × 0.8 incoming damage). They survive cabin rests and clear on a new run. Permanent status names appear on both solo and split-screen HUDs.
 
 | Sacrifice | Status effect | Benefit |
 |---|---|---|
 | Moose | Titan's Endurance | Double stamina recovery |
 | Deer | Hart's Vigour | 35% less sprint stamina use |
 | Duck | Marsh Veil | 40% less movement noise for detection |
-| Goose | Watchful Omen | Normal map plus tiny danger skulls |
+| Goose | Watchful Omen | All danger skulls; +75 m ordinary wildlife radar per stack |
 | Mink | Shadow Step | 50% faster crouched movement |
-| Wolf | Pack Hunger | Double weapon damage |
-| Werewolf | Moon Blood | 25% more maximum health |
+| Wolf | Pack Hunger | +25% weapon damage per stack |
+| Werewolf | Moon Blood | +40% maximum health per stack |
 | Bear | Iron Hide | 20% less incoming damage |
 | Raider | Sleight of Hand | 25% shorter reloads |
 | Legionary | Unbroken Will | 35% faster struggle escape |
 | Musketeer | Dead Eye | 30% less weapon spread |
 
-Moon Blood stacks with lycanthropy and psychedelic: an empowered infected hunter has 250 maximum HP, or 175 while psychedelic. Increased maximum HP does not instantly heal the hunter; normal healing and rest can fill it.
+Moon Blood stacks with lycanthropy and psychedelic: an empowered infected hunter has 280 maximum HP with one Moon Blood, or 196 while psychedelic. Increased maximum HP does not instantly heal the hunter; normal healing and rest can fill it.
 
 
 ## Watchtowers, moose and close combat
 
 All co-op hunters now wake in the main red cabin. Four non-climbable watchtowers mark the north, east, south and west of the navigable map. At a tower's ground-level sign or the cabin travel sign, press E / controller Y. Select with arrow keys / D-pad, confirm with Enter / A, cancel with Escape / B. Travel preserves wounds, health, ammunition and stamina. Stations appear as mint dots on both maps; the original island asset is unchanged.
 
-Each round includes two ambient moose with 650 HP, heavy shoulders, long legs and broad antlers. They may defend their space within six metres; shooting provokes a sustained charge even after a heavy-hit flinch. Vital heart/brain shots still kill. Free Play keeps them non-hostile. Moose have anatomy, limb damage, X-rays, network replicas and their own sacrifice boon.
+Each round includes two ambient moose with 650 HP, heavy shoulders, long legs and broad antlers. They may defend their space within six metres; shooting provokes a sustained charge even after a heavy-hit flinch. Vital hits deal 450 brain / 900 heart damage; high-health enemies can survive. Free Play keeps them non-hostile. Moose have anatomy, limb damage, X-rays, network replicas and their own sacrifice boon.
 
 Knives deal 115 base damage, axes 130 and spears 200, retaining short range and arcing flight. Holding the struggle control now animates repeated defensive knife thrusts, each doing 10 damage every half-second. An escaped attacker flinches for three seconds. Static X-rays use thicker trajectories and red impact markers.
 
 Rewards now go through one host-owned award path, adding the same amount to every wallet. Sequenced reward messages ignore duplicate deliveries; client replicas cannot pay their own kills. Starting money is applied to both hunters together; purchases remain individual.
+
+
+## Supernatural encounters and wounded anatomy (September 2026)
+
+Every fifth completed sacrifice by a hunter summons three winged sword angels (750 HP), with “You have provoked the forces of good”. Each slain angel gives its killer a permanent **Angel Destroyer ×N**, adding 30 absolute damage per hit per stack. It applies after distance falloff; vital damage remains capped. Sacrifices grant their normal species bonus; angels cannot also be sacrificed for a duplicate reward.
+
+Each mission has a 22% chance to attempt a devil encounter at an outdoor navigable point. The red devil wears a checked tweed suit, has 1,000 HP and begins neutral. Approach and press E/Y to **Sell your soul for power**: permanently halve your maximum-health factor for three random ritual stacks. The cost is visible in the prompt before interacting. Each hunter can accept once per devil. Killing him instead pays 535 shared credits (500 bonus plus 35 human bounty). He fights back if shot or disturbed by nearby gunfire. Soul costs and boons last until the run ends.
+
+Lycanthropy gives its speed boost immediately and blurred red vision until the next multiple-of-five werewolf round. Blur then ends; red tint remains. Surviving that round unlocks the existing permanent doubled base HP. Infected hunters occasionally make wolf vocalizations.
+
+Brain and heart impacts now deal finite 450/900 damage instead of forcing death. The X-ray identifies the vital cap. Fallen body collision and anatomical traces follow the same pose as the visible model; wounded animals move their heads and vocalize. Species-specific original vocal foley covers deer, moose, ducks, geese and mink; wolves retain their recorded howl, bears their existing growl. HP labels are larger and replicate to co-op clients.
+
+The main-menu armory shows pictures rendered from all 36 actual weapon models, barrel type and accuracy in degrees (lower is better). Rifled longarms have tighter dispersion than pistols and smoothbores; shots already sample random deviation, with aiming/movement affecting it. These are historically informed game values, not measured historical group sizes; see qa/accuracy-notes.md.

@@ -1,6 +1,7 @@
 extends Node3D
 ## Original frontier ranger silhouettes: leather dusters, worn armor and field gear.
 var beast:=false
+var costume:="ranger"
 var coat_color:=Color("52645a")
 var joints: Dictionary={}
 var materials: Dictionary={}
@@ -28,7 +29,7 @@ func joint(parent: Node3D,id: String,p: Vector3) -> Node3D:
 func _ready() -> void:
 	var wool:=mat("coat",Color("342e36") if beast else coat_color)
 	var shadow:=mat("shadow",Color("211e26") if beast else coat_color.darkened(.25))
-	var leather:=mat("leather",Color("352c26")); var skin:=mat("skin",Color("4b454e") if beast else Color("b28d72"))
+	var leather:=mat("leather",Color("352c26")); var skin:=mat("skin",Color("4b454e") if beast else (Color("bc2425") if costume=="devil" else Color("b28d72")))
 	var trim:=mat("trim",Color("716564") if beast else Color("afa18a")); var dark:=mat("dark",Color("191c20"))
 	torso=joint(self,"torso",Vector3(0,.84,0))
 	oval(torso,Vector3(0,.36,0),Vector3(.30 if beast else .255,.34,.18),wool)
@@ -56,7 +57,7 @@ func _ready() -> void:
 				segment(torso,Vector3(side*(.38+tuft*.018),.69-tuft*.085,.10),Vector3(side*.20,.49-tuft*.035,0),0,.085,wool)
 			for tuft in 4:
 				segment(head,Vector3(side*(.16+tuft*.016),-.04-tuft*.035,.01),Vector3(side*.10,.04,-.03),0,.045,wool)
-	else:
+	elif costume=="ranger":
 		oval(head,Vector3(0,-.08,-.085),Vector3(.10,.071,.075),leather)
 		oval(head,Vector3(0,.12,.012),Vector3(.151,.085,.143),shadow)
 		oval(head,Vector3(0,.083,-.035),Vector3(.157,.025,.164),wool)
@@ -87,7 +88,7 @@ func _ready() -> void:
 		if beast:
 			for finger in 4: segment(elbow,Vector3((finger-1.5)*.026,-.37,-.045),Vector3((finger-1.5)*.026,-.49,-.11),.010,0,trim)
 			for tuft in 3: segment(elbow,Vector3(side*.14,-.10-tuft*.08,.04),Vector3(0,-.04-tuft*.06,0),0,.055,wool)
-	if not beast: ranger_details(head,leather,dark,trim)
+	if not beast and costume=="ranger": ranger_details(head,leather,dark,trim)
 	# Batch static detail within each joint; retain the articulated transforms.
 	preload("res://scripts/weapon_model_builder.gd").new()._merge_group(self)
 func set_motion(speed: float,crouch: bool=false,aim: bool=false,attack: bool=false) -> void:
@@ -99,7 +100,7 @@ func _process(delta: float) -> void:
 	torso.position.y=lerpf(torso.position.y,(.65 if crouched else .84)+absf(sin(phase))*activity*.035,1-exp(-delta*12))
 	torso.rotation.x=(.16+.15*activity if beast else .08*activity)+(.25 if crouched else 0)
 	joints.head.rotation.y=sin(phase*.22)*.045*(1-activity)
-	if not beast:
+	if not beast and costume=="ranger":
 		for side in [-1,1]: joints["coat_tail_%d"%side].rotation.x=sin(phase+side)*activity*.16
 	for side in [-1,1]:
 		var suffix:="L" if side<0 else "R"

@@ -86,8 +86,8 @@ func _ready() -> void:
 		var coat := Color("b4b2a2") if goose else Color("695646")
 		ellipsoid(Vector3(0,.25,0),Vector3(.19,.18,.32),coat)
 		ellipsoid(Vector3(0,.47 if goose else .39,.20),Vector3(.075,.25 if goose else .10,.075),coat)
-		ellipsoid(Vector3(0,.72 if goose else .46,.24),Vector3(.095,.095,.12),Color("d6d2be") if goose else Color("284e3a"))
-		ellipsoid(Vector3(0,.69 if goose else .435,.36),Vector3(.065,.026,.09),Color("d2963e"))
+		ellipsoid(Vector3(0,.72 if goose else .46,.24),Vector3(.095,.095,.12),Color("d6d2be") if goose else Color("284e3a")).set_meta("wounded_head",true)
+		ellipsoid(Vector3(0,.69 if goose else .435,.36),Vector3(.065,.026,.09),Color("d2963e")).set_meta("wounded_head",true)
 		for side in [-1,1]:
 			ellipsoid(Vector3(side*.07,.055,.02),Vector3(.045,.027,.09),Color("bc7d3e")).set_meta("limb","left_leg" if side<0 else "right_leg")
 			ellipsoid(Vector3(side*.17,.29,-.04),Vector3(.045,.10,.25),Color("62655f")).set_meta("limb","left_wing" if side<0 else "right_wing")
@@ -151,8 +151,8 @@ func receive_ballistic_hit(amount: float,point: Vector3,direction: Vector3,zone:
 	if limbs.parts.has(zone):
 		wounded_by_hunter=true; frighten(point-direction*3,20)
 		return limbs.hit(zone,amount,_force,point,direction)
-	var local := to_local(point)
-	var ray := (global_basis.inverse()*direction).normalized()
+	var local: Vector3 = reaction.anatomy_transform().affine_inverse()*point
+	var ray: Vector3 = (reaction.anatomy_transform().basis.inverse()*direction).normalized()
 	var report: Dictionary = preload("res://scripts/wildlife_anatomy.gd").trace(species,local,ray,penetration)
 	var vital: bool = not report.organs.is_empty()
 	var multiplier: float = report.multiplier*vital_bonus if vital else 1.0
@@ -162,9 +162,13 @@ func receive_ballistic_hit(amount: float,point: Vector3,direction: Vector3,zone:
 	frighten(point-direction*3,20.0)
 	for animal in game.nodes_in_group("wildlife"):
 		if animal!=self and animal.position.distance_to(position)<24: animal.frighten(point-direction*3,10)
-	damage(health if report.instant_fatal else amount*multiplier)
+	damage(preload("res://scripts/vital_damage.gd").resolve(report.organs,amount*multiplier))
 	game.gore.blood_burst(point,direction,1.0)
-	report.merge({"multiplier":multiplier,"bleed":bleeding_rate,"calculated_damage":amount*multiplier,"damage":before-health,"fatal":dead},true)
+	report.merge({"multiplier":multiplier,"bleed":bleeding_rate,"calculated_damage":preload("res://scripts/vital_damage.gd").resolve(report.organs,amount*multiplier),"damage":before-health,"fatal":dead},true)
+	report.instant_fatal=dead and (report.organs.has("brain") or report.organs.has("heart"))
+	if report.organs.has("brain") or report.organs.has("heart"):
+		report.vital_cap=900 if report.organs.has("heart") else 450
+		report.multiplier=float(report.calculated_damage)/maxf(amount,.001)
 	return report
 
 func frighten(origin: Vector3,duration: float = 10.0) -> void:

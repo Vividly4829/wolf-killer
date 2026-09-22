@@ -58,7 +58,7 @@ func run() -> void:
 	trigger.axis_value=0; Input.parse_input_event(trigger.duplicate()); Input.flush_buffered_events()
 	game.player.controller_device=-1
 	game.rituals.grant("wolf",game.level+3); game.level=30
-	check(game.rituals.factor("damage")==2,"double-damage wolf ritual survives all later rounds")
+	check(game.rituals.factor("damage")==1.25,"25% damage wolf ritual survives all later rounds")
 	if OS.get_cmdline_user_args().has("--capture"):
 		game.world.weather.hour=13; game.world.weather.apply(); game.player.weapon.hide(); game.player.struggle_knife.hide(); game.player.clear_injuries(); game.damage_flash=0
 		game.shot_review.hide(); game.dialogue_left=0

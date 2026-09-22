@@ -1,12 +1,13 @@
 extends Node
 const BOONS := {
+	"angel":{"name":"ANGEL DESTROYER","effect":"flat_damage","factor":31.0,"description":"+30 damage per hit per stack"},
 	"moose":{"name":"TITAN'S ENDURANCE","effect":"stamina_regen","factor":2.0,"description":"Double stamina recovery"},
 	"deer":{"name":"HART'S VIGOUR","effect":"stamina","factor":.65,"description":"35% less sprint stamina use"},
 	"duck":{"name":"MARSH VEIL","effect":"noise","factor":.6,"description":"40% quieter movement"},
-	"goose":{"name":"WATCHFUL OMEN","effect":"radar","factor":1.0,"description":"Danger radar with skull markers"},
+	"goose":{"name":"WATCHFUL OMEN","effect":"radar","factor":1.0,"description":"All threats marked; +75 m wildlife radar per stack"},
 	"mink":{"name":"SHADOW STEP","effect":"sneak","factor":1.5,"description":"50% faster crouched movement"},
-	"wolf":{"name":"PACK HUNGER","effect":"damage","factor":2.0,"description":"Double weapon damage"},
-	"werewolf":{"name":"MOON BLOOD","effect":"health","factor":1.25,"description":"25% more maximum health"},
+	"wolf":{"name":"PACK HUNGER","effect":"damage","factor":1.25,"description":"25% more weapon damage per stack"},
+	"werewolf":{"name":"MOON BLOOD","effect":"health","factor":1.4,"description":"40% more maximum health per stack"},
 	"bear":{"name":"IRON HIDE","effect":"resistance","factor":.8,"description":"20% less incoming damage"},
 	"raider":{"name":"SLEIGHT OF HAND","effect":"reload","factor":.75,"description":"25% shorter reloads"},
 	"legionary":{"name":"UNBROKEN WILL","effect":"struggle","factor":1.35,"description":"35% faster struggle escape"},
@@ -28,21 +29,38 @@ func _ready() -> void:
 func kind(animal: Node3D) -> String:
 	return ("werewolf" if animal.werewolf else "wolf") if animal is IslandWolf else str(animal.get("species"))
 func eligible(animal: Node3D) -> bool:
-	return is_instance_valid(animal) and not animal.is_queued_for_deletion() and animal.get("reaction") != null and animal.reaction.incapacitated() and BOONS.has(kind(animal))
+	return is_instance_valid(animal) and not animal.is_queued_for_deletion() and animal.get("reaction") != null and animal.reaction.incapacitated() and BOONS.has(kind(animal)) and kind(animal)!="angel"
 func has_boon(species: String,peer: int=0) -> bool:
 	var entries: Dictionary=boons
 	if peer>0 and peer!=game.coop.peer_id():
 		if not game.coop.avatars.has(peer): return false
 		entries=game.coop.avatars[peer].get_meta("ritual_boons",{})
 	return entries.has(species)
+func count(species: String,peer: int=0) -> int:
+	var entries: Dictionary=boons
+	if peer>0 and peer!=game.coop.peer_id():
+		if not game.coop.avatars.has(peer): return 0
+		entries=game.coop.avatars[peer].get_meta("ritual_boons",{})
+	return int(entries.get(species,0))
 func factor(effect: String,peer: int=0) -> float:
 	for species in BOONS:
-		if BOONS[species].effect==effect and has_boon(species,peer): return float(BOONS[species].factor)
+		if BOONS[species].effect==effect and has_boon(species,peer):
+			var value: float=BOONS[species].factor
+			return 1.0+(value-1.0)*count(species,peer) if value>=1.0 else pow(value,count(species,peer))
 	return 1.0
+func flat_damage(peer: int=0) -> float: return 30.0*count("angel",peer)
+func give(peer: int,species: String) -> void:
+	if peer==1: grant(species,0)
+	elif game.coop.avatars.has(peer):
+		var hunter: Node=game.coop.avatars[peer]
+		var entries: Dictionary=hunter.get_meta("ritual_boons",{})
+		entries[species]=int(entries.get(species,0))+1; hunter.set_meta("ritual_boons",entries)
+		game.coop.send_to(peer,"ritual_boon",[species,0])
 func all_radar() -> bool: return game.affliction.psychedelic or has_boon("goose")
 func channeling() -> bool: return not channel_type.is_empty()
 func clear() -> void:
 	for peer in tasks.keys(): cancel(peer)
+	game.supernatural.reset_run()
 	boons.clear(); channel_left=0; channel_type=""
 func visible_to(animal: Node3D,origin: Vector3,exclude: Array[RID]) -> bool:
 	var query:=PhysicsRayQueryParameters3D.create(origin+Vector3.UP,animal.position+Vector3.UP*.45,3)
@@ -104,7 +122,7 @@ func ended(success: bool) -> void:
 	if not success: game.show_notice("The ritual was broken.",2.5)
 func grant(species: String,expiry: int) -> void:
 	if not BOONS.has(species): return
-	boons[species]=expiry; channel_left=0; channel_type=""
+	boons[species]=int(boons.get(species,0))+1; channel_left=0; channel_type=""
 	game.show_notice("%s / %s / PERMANENT"%[BOONS[species].name,BOONS[species].description],7)
 func _process(delta: float) -> void:
 	channel_left=maxf(0,channel_left-delta)
@@ -115,7 +133,8 @@ func _process(delta: float) -> void:
 	var rows: PackedStringArray=[]
 	if channeling(): rows.append("DARK SACRIFICE  %d%%"%roundi((1-channel_left/DURATION)*100))
 	for species in boons:
-		if has_boon(species): rows.append("%s / PERMANENT"%BOONS[species].name)
+		if has_boon(species): rows.append("%s ×%d / PERMANENT"%[BOONS[species].name,count(species)])
+	if game.supernatural.soul_cost>0: rows.append("SOUL SOLD ×%d / MAX HP ×%.3f"%[game.supernatural.soul_cost,pow(.5,game.supernatural.soul_cost)])
 	ui.text=" · ".join(rows); ui.size.x=590; ui.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
 	game.health=minf(game.health,game.maximum_health())
 	if game.coop.client(): return
@@ -128,10 +147,11 @@ func _process(delta: float) -> void:
 		task.left-=delta
 		if task.left>0: continue
 		tasks.erase(peer); target.remove_meta("ritual_owner")
+		game.supernatural.sacrifice_completed(peer)
 		var species: String=task.kind; var expiry: int=2147483647
 		if peer==1: grant(species,expiry)
 		else:
-			var entries: Dictionary=hunter.get_meta("ritual_boons",{}); entries[species]=expiry; hunter.set_meta("ritual_boons",entries)
+			var entries: Dictionary=hunter.get_meta("ritual_boons",{}); entries[species]=int(entries.get(species,0))+1; hunter.set_meta("ritual_boons",entries)
 			game.coop.send_to(peer,"ritual_boon",[species,expiry])
 		game.gore.blood_pool(target.position,.7)
 		if target is IslandWolf: target.damage(target.health+1)

@@ -30,6 +30,10 @@ WOLF ISLAND - WINDOWS X64
 
 Extract this entire ZIP, then double-click WolfIsland.exe.
 Godot is not required. Game data is embedded in the executable.
+INTERNET CO-OP: choose HOST INTERNET / 4 PLAYERS. First hosting downloads a
+verified 55 MB Cloudflare helper. Invite copies automatically; friends paste
+it into JOIN. Pause > COPY INTERNET INVITE copies it again. No port forwarding.
+Experimental free playtest relay: availability is not guaranteed. Host must stay open.
 Progress is stored in %APPDATA%\Wolf Island, outside this folder.
 The build is unsigned. Local split screen uses keyboard/mouse for P1 and a controller for P2.
 Source and updates: https://github.com/Vividly4829/wolf-killer

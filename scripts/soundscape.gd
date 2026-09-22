@@ -82,6 +82,8 @@ func _ready() -> void:
 	samples["growl"] = samples.snarl_0
 	samples["bark"] = samples.snarl_1 # Recorded sharp canine snarl for close lunges.
 	samples["howl"] = WOLF_HOWL
+	samples["wolf_hurt"]=load("res://assets/audio/wolf_hurt.wav")
+	for species in ["duck","goose","deer","moose","mink"]: samples[species+"_hurt"]=load("res://assets/audio/"+species+"_hurt.wav")
 	samples["bear_growl"]=load("res://assets/audio/bear_growl.wav")
 	dialogue = AudioStreamPlayer.new()
 	dialogue.stream = preload("res://assets/audio/opening_line.wav")

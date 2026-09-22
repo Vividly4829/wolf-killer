@@ -203,7 +203,7 @@ func configure(owner_game: Node, navigation: RefCounted, level: int, profile_see
 	_hurt_label = Label3D.new()
 	_hurt_label.position.y = 1.35
 	_hurt_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	_hurt_label.font_size = 26
+	_hurt_label.font_size = 36
 	_hurt_label.outline_size = 6
 	_hurt_label.modulate = Color("f9dca7")
 	_hurt_label.pixel_size = 0.005
@@ -278,12 +278,12 @@ func receive_ballistic_hit(amount: float, world_hit: Vector3, shot_direction: Ve
 		injury_speed_scale=limbs.speed_factor()
 		if not dead: _alert_to(world_hit-shot_direction*10)
 		return result
-	var entry := to_local(world_hit) / size_scale
-	var direction := (global_basis.inverse() * shot_direction).normalized()
+	var entry: Vector3 = (reaction.anatomy_transform().affine_inverse()*world_hit) / size_scale
+	var direction: Vector3 = (reaction.anatomy_transform().basis.inverse() * shot_direction).normalized()
 	var penetration := penetration_m / size_scale
 	var report: Dictionary = preload("res://scripts/wolf_anatomy.gd").trace(entry, direction, penetration, hit_zone)
 	if werewolf:
-		report=preload("res://scripts/human_xray.gd").trace(to_local(world_hit)/1.45,direction,amount,penetration_m/1.45)
+		report=preload("res://scripts/human_xray.gd").trace((reaction.anatomy_transform().affine_inverse()*world_hit)/1.45,direction,amount,penetration_m/1.45)
 		report.species="werewolf"; report.bleed=4.0 if not report.organs.is_empty() else .5
 		report.zone="WEREWOLF / "+("HEAD" if entry.y>1.5 else "BODY")
 	var before := health
@@ -297,12 +297,16 @@ func receive_ballistic_hit(amount: float, world_hit: Vector3, shot_direction: Ve
 		if report.organs.has("spine"):
 			injury_speed_scale = minf(injury_speed_scale, .2)
 		var fatal_vital: bool = report.organs.has("brain") or report.organs.has("heart")
-		damage(health if fatal_vital else amount * float(report.multiplier))
+		damage(preload("res://scripts/vital_damage.gd").resolve(report.organs,amount * float(report.multiplier)))
 		report["instant_fatal"] = fatal_vital
 		if not dead: _alert_to(world_hit - shot_direction.normalized() * 10.0)
 	report["damage"] = before - maxf(0.0, health)
-	report["calculated_damage"] = amount*float(report.multiplier)
+	report["calculated_damage"] = preload("res://scripts/vital_damage.gd").resolve(report.organs,amount*float(report.multiplier))
 	report["fatal"] = dead
+	report.instant_fatal=dead and (report.organs.has("brain") or report.organs.has("heart"))
+	if report.organs.has("brain") or report.organs.has("heart"):
+		report.vital_cap=900 if report.organs.has("heart") else 450
+		report.multiplier=float(report.calculated_damage)/maxf(amount,.001)
 	return report
 
 func receive_hit(amount: float, world_hit: Vector3, shot_direction: Vector3, hit_zone: String = "body", limb_force: float = 1.0) -> void:

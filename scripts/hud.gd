@@ -298,17 +298,17 @@ func _menu() -> void:
 	_button(overlay, "FREE PLAY / ALL WEAPONS", Rect2(50, 518, 390, 48), game.start_free_play)
 	_button(overlay, "WEAPON STATS & PRICES", Rect2(935, 453, 300, 48), open_weapon_stats)
 	_button(overlay, "QUIT", Rect2(800, 511, 100, 42), game.quit_game)
-	_button(overlay,"HOST 3-PLAYER CO-OP",Rect2(470,453,295,48),game.coop.host_session)
+	_button(overlay,"HOST INTERNET / 4 PLAYERS",Rect2(470,453,295,48),game.coop.internet.host)
 	var address := LineEdit.new()
-	address.text = "127.0.0.1"
-	address.placeholder_text = "Host IP address"
+	address.text = ""
+	address.placeholder_text = "Paste invite link / LAN IP"
 	address.position = Vector2(470,511)
 	address.size = Vector2(185,42)
 	overlay.add_child(address)
 	_button(overlay,"JOIN",Rect2(665,511,100,42),func(): game.coop.join_session(address.text))
 	_button(overlay,"LOCAL SPLIT SCREEN / 2 PLAYERS",Rect2(470,612,390,40),func(): game.start_split())
 	_label(overlay,"P1 keyboard + mouse · P2 Xbox controller",Vector2(470,661),13,MUTED)
-	_label(overlay,"Up to 3 hunters · friendly fire\nInternet host: forward UDP 27896\n"+game.coop.status,Vector2(470,565),13,MUTED)
+	_label(overlay,"4 hunters · friendly fire · experimental free relay\nInvite copied when ready; paste here to join.\n"+game.coop.status,Vector2(470,565),13,MUTED)
 	_label(overlay, "BANKED  %d CR     /     BEST  LEVEL %02d" % [game.progress.money, game.progress.best_level], Vector2(50, 596), 14, ACCENT)
 	_label(overlay, "Death costs your weapons. Your money stays.\nMouse to aim  ·  WASD to move  ·  Left click to shoot", Vector2(50, 630), 13, MUTED)
 	_block(overlay, Rect2(966, 595, 265, 83), Color(0.04, 0.10, 0.12, 0.86))
@@ -598,6 +598,7 @@ func _pause() -> void:
 	_label(overlay, "Your teammate keeps playing." if is_instance_valid(game.split_session) else ("Online world keeps running." if game.coop.active else "The island can wait."), Vector2(470, 237), 17, MUTED)
 	_button(overlay, "RESUME", Rect2(450, 302, 380, 54), game.set_mode.bind("playing"), true)
 	_button(overlay, "MAIN MENU", Rect2(450, 376, 380, 48), game.return_to_menu)
+	if not game.coop.internet.invite.is_empty(): _button(overlay,"COPY INTERNET INVITE",Rect2(880,302,340,54),game.coop.internet.copy_invite)
 	_button(overlay, "SAVE & QUIT", Rect2(450, 441, 380, 48), game.quit_game)
 	_label(overlay, "LS move · RS look · LT aim · RT fire/fight · X reload\nY pick up / interact / store · LB/RB switch weapon\nA jump · B sneak · L3 sprint · D-pad up bandage\nD-pad left fire mode · D-pad down X-ray\nMenu / A / B resume · Y main menu" if game.controller_device>=0 else "WASD move · Mouse aim · Click fire · R reload\nCtrl sneak · B bandage · E interact · V fire mode\n1–9 quick slots · Q / wheel cycle weapons\nHold F or left mouse to fight off a wolf\nShift sprint · Space jump · F11 fullscreen", Vector2(414, 534), 15, MUTED)
 
@@ -619,6 +620,9 @@ func _defeat() -> void:
 	_button(overlay, "MAIN MENU", Rect2(450, 530, 380, 45), game.return_to_menu)
 
 func _process(_delta: float) -> void:
+	if game.mode=="connecting":
+		var detail=overlay.get_node_or_null("ConnectionDetail")
+		if detail: detail.text=game.coop.status
 	for child in compact_layout:
 		child.position = compact_layout[child].position
 		child.scale = compact_layout[child].scale
@@ -816,8 +820,9 @@ func _connection() -> void:
 	var failed: bool=game.mode=="connection_error"
 	_block(overlay,Rect2(0,0,1280,720),Color(.025,.055,.065,.96))
 	_label(overlay,"COULD NOT JOIN THE SESSION" if failed else "JOINING THE ACTIVE SESSION",Vector2(285,210),32)
-	var message: String=game.coop.connection_error if failed else "Connecting to the online host.\nWaiting for the host to assign your cabin."
+	var message: String=game.coop.connection_error if failed else game.coop.status+"\nPlease wait; the first internet host downloads a 55 MB relay helper."
 	var detail:=_label(overlay,message,Vector2(300,285),20,PAPER)
+	detail.name="ConnectionDetail"
 	detail.size=Vector2(680,130); detail.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
 	if failed: _button(overlay,"RETRY / CONTROLLER A",Rect2(430,440,420,55),game.coop.retry_connection,true)
 	_button(overlay,"MAIN MENU / CONTROLLER Y",Rect2(430,515,420,48),game.return_to_menu)
@@ -837,8 +842,8 @@ func _weapon_stats() -> void:
 	_label(overlay, "Sorted by price · Base damage before distance, armour and shot placement · Healthy reload times", Vector2(40, 70), 14, MUTED)
 	var indices: Array = range(game.WEAPONS.size())
 	indices.sort_custom(func(a, b): return int(game.WEAPONS[a].price) < int(game.WEAPONS[b].price))
-	var columns := [40, 360, 440, 555, 705, 815, 915, 1015]
-	var headings := ["WEAPON", "CREDITS", "DAMAGE", "EFF. / MAX m", "LOAD + SPARE", "RELOAD s", "SHOT GAP s", "SPREAD °"]
+	var columns := [140, 360, 440, 555, 705, 815, 915, 1015]
+	var headings := ["WEAPON", "CREDITS", "DAMAGE", "EFF. / MAX m", "LOAD + SPARE", "RELOAD s", "SHOT GAP s", "ACCURACY ±°"]
 	for c in columns.size():
 		_label(overlay, headings[c], Vector2(columns[c], 111), 12, ACCENT)
 	for row in 7:
@@ -849,6 +854,9 @@ func _weapon_stats() -> void:
 		var y: float = 140 + row * 65
 		var stripe := _block(overlay, Rect2(30, y, 1220, 61), Color(.065, .10, .13) if row % 2 == 0 else Color(.045, .075, .10))
 		stripe.name = "WeaponStatsRow%d" % index
+		var picture:=TextureRect.new(); picture.position=Vector2(34,y+3); picture.size=Vector2(100,54)
+		picture.expand_mode=TextureRect.EXPAND_IGNORE_SIZE; picture.stretch_mode=TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		picture.texture=load("res://assets/weapon_icons/%02d.png"%index); overlay.add_child(picture)
 		var explosive: bool = data.get("explosive", false)
 		var per_round: bool = explosive and not data.get("launcher", false)
 		var damage := "%.0f" % float(data.damage)
@@ -863,7 +871,7 @@ func _weapon_stats() -> void:
 			cell.name = "Stat%d_%d" % [index, c]
 			cell.size.x = (columns[c + 1] - columns[c] - 8) if c < columns.size() - 1 else 210
 			cell.clip_text = true
-		var note := "%s · Penetration %.2f m · Noise %.0f m" % [data.ammo_type, data.penetration, data.noise_radius]
+		var note := "%s · Penetration %.2f m · Noise %.0f m" % [str(data.barrel)+" / "+str(data.ammo_type), data.penetration, data.noise_radius]
 		if explosive: note = "Blast radius %.0f m · %s · Friendly fire" % [data.blast_radius, "Impact fuse" if data.get("impact_fuse", false) else ("Fuse %.1f s" % data.fuse)]
 		if per_round: note += " · One per round, replenished free; kept after throwing"
 		elif data.get("flame",false): note = "Hold fire · Short flame cone · Walls block fire · Fuel refills at rest · Friendly fire"
@@ -872,7 +880,7 @@ func _weapon_stats() -> void:
 			var secondary: Dictionary = game.WeaponCatalog.secondary_weapon()
 			note += " · Secondary: %d × %.0f damage / %.0f m effective / %.2f s reload" % [secondary.pellets, secondary.damage, secondary.effective_range, secondary.reload]
 		elif index == 0: note += " · Starting weapon granted free; stand still to reload"
-		_label(overlay, note, Vector2(40, y + 34), 12, MUTED)
+		_label(overlay, note, Vector2(140, y + 34), 12, MUTED)
 	_label(overlay, "Shotgun damage is pellet count × damage per pellet. Effective range marks falloff; maximum is the flight limit (explosive reach is nominal).", Vector2(40, 608), 13, MUTED)
 	_label(overlay, "Spread is base cone deviation (lower is better); movement and aiming affect accuracy. Vital hits can be fatal.", Vector2(40, 630), 13, MUTED)
 	_button(overlay, "← PREVIOUS", Rect2(40, 665, 180, 38), func(): step_stats_page(-1))

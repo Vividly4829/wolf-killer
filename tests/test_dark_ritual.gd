@@ -23,6 +23,7 @@ func run() -> void:
 	AudioServer.set_bus_mute(0,true); root.mode=Window.MODE_WINDOWED; root.size=Vector2i(1280,720)
 	var x:=140.0
 	for species in game.rituals.BOONS:
+		if species=="angel": continue
 		var animal=spawn(species,Vector3(x,80,140)); x+=5
 		animal.health=animal.max_health*.071
 		check(not animal.reaction.incapacitated(),species+" above 7% stays active")
@@ -65,15 +66,15 @@ func run() -> void:
 	check(not game.rituals.start(1,offering.get_instance_id()),"corpse cannot grant another boon")
 	for species in game.rituals.BOONS: game.rituals.grant(species,game.level+3)
 	check(is_equal_approx(game.player.get_reload_multiplier(),.75) and is_equal_approx(game.player.get_aim_spread_multiplier(),.7),"raider and musketeer boons affect weapon handling")
-	check(is_equal_approx(game.weapon_spec().damage,game.WeaponCatalog.weapon(game.current_weapon).damage*2.0),"wolf boon increases actual weapon damage")
-	check(game.rituals.all_radar() and game.rituals.factor("sneak")==1.5 and game.rituals.factor("stamina")==.65 and game.rituals.factor("struggle")==1.35,"bird and movement boons expose distinct live modifiers")
+	check(is_equal_approx(game.weapon_spec().damage,game.WeaponCatalog.weapon(game.current_weapon).damage*1.25),"wolf boon increases actual weapon damage")
+	check(game.rituals.all_radar() and game.rituals.factor("sneak")==1.5 and is_equal_approx(game.rituals.factor("stamina"),.65*.65) and game.rituals.factor("struggle")==1.35,"bird and movement boons expose distinct live modifiers")
 	game.affliction.infected_wave=5; game.level=11
 	for species in game.rituals.BOONS: game.rituals.grant(species,14)
 	game.affliction.psychedelic=true
-	check(is_equal_approx(game.maximum_health(),175),"moon blood stacks with lycanthropy and psychedelic")
+	check(is_equal_approx(game.maximum_health(),252),"moon blood stacks with lycanthropy and psychedelic")
 	game.affliction.psychedelic=false; game.health=100; game._apply_health_damage(10,false)
-	check(is_equal_approx(game.health,92),"bear boon reduces incoming damage")
-	game.level=14; check(game.rituals.has_boon("deer") and game.rituals.factor("health")==1.25,"boons persist without round expiry")
+	check(is_equal_approx(game.health,93.6),"bear boon reduces incoming damage")
+	game.level=14; check(game.rituals.has_boon("deer") and is_equal_approx(game.rituals.factor("health"),1.8),"boons persist without round expiry")
 	game.start_run(false); game.set_process(false); game.player.set_physics_process(false); game.campaign.set_process(false); game.rituals.set_process(false)
 	game.player.position=game.world.exterior_rally_point; game.begin_wave()
 	var target: Node3D=game.objective_targets()[0]; target.set_physics_process(false); target.damage(target.max_health*.95)

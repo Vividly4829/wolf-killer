@@ -15,7 +15,7 @@ func run() -> void:
 	root.add_child(game); game.start_free_play(); game.set_process(false); game.player.set_physics_process(false); game.campaign.set_process(false)
 	AudioServer.set_bus_mute(0,true); root.mode=Window.MODE_WINDOWED; root.size=Vector2i(1280,720)
 	game.level=5; game.affliction.infect(); game.affliction._process(0)
-	check(game.player.supernatural_speed==1.5 and game.affliction.blur_amount()==0 and game.maximum_health()==100,"infection immediately gives speed and no blur")
+	check(game.player.supernatural_speed==1.5 and game.affliction.blur_amount()>0 and game.maximum_health()==100,"infection immediately gives speed and temporary blur")
 	game.level=10; check(game.maximum_health()==100,"next werewolf round must be survived before health unlock")
 	game.level=11; check(game.maximum_health()==200,"health permanently doubles after next werewolf round")
 	game.level=12; check(game.maximum_health()==200 and game.affliction.transformed(),"health and transformation persist on ordinary rounds")
