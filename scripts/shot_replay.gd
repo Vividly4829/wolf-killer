@@ -116,6 +116,20 @@ func load_shot(entry: Dictionary,restart: bool=false) -> void:
 			label.no_depth_test=true; content.add_child(label)
 		helper.queue_free()
 	add_context()
+	for path in paths:
+		if not path.has("blast"): continue
+		var blast_center: Vector3=path.blast.center-origin
+		var blast_radius: float=path.blast.radius
+		var rings: Array=[]
+		for plane in 3:
+			for i in 64:
+				var tips: Array=[]
+				for angle in [i*TAU/64,(i+1)*TAU/64]:
+					var p:=Vector3(cos(angle),0,sin(angle)) if plane==0 else Vector3(cos(angle),sin(angle),0) if plane==1 else Vector3(0,cos(angle),sin(angle))
+					tips.append(blast_center+p*blast_radius)
+				rings.append(tips)
+		var shell:=line_mesh(rings,mat(Color(1,.38,.12,.65))); shell.name="BlastRadius"
+
 	for report in entry.reports:
 		if not report.has("target_transform") or float(report.get("damage",0))<=0: continue
 		var impact: Vector3=report.target_transform*report.entry-origin
@@ -175,6 +189,9 @@ func update_frame() -> void:
 			var point:=Geometry3D.get_closest_point_to_segment(animal,paths[0].points[i-1]-origin,paths[0].points[i]-origin)
 			if point.distance_squared_to(animal)<best: nearest=point; best=point.distance_squared_to(animal)
 		focus=animal.lerp(nearest,.5); distance=clampf(sqrt(best)*1.5+4,5,16)
+	if paths[0].has("blast"):
+		focus=paths[0].blast.center-origin
+		distance=maxf(4,float(paths[0].blast.radius)*2.7)
 	camera.position=focus+side*distance+Vector3.UP*distance*.48-heading*distance*.38
 	camera.look_at(focus+heading*.4,Vector3.UP)
 	if fraction>=1:

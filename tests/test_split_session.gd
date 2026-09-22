@@ -195,6 +195,15 @@ func run() -> void:
 	host.coop.clock+=1; host.coop._process(.2)
 	replica.reaction._process(.3)
 	check(replica.dead and replica.health==0 and replica.reaction.falling and absf(replica.model.rotation.z)>1,"host wolf kill arrives as collapsed corpse on controller view")
+	var soldier=preload("res://scripts/musketeer.gd").new(); soldier.game=host; soldier.species="musketeer"
+	host.add_child(soldier); soldier.position=host.world.exterior_rally_point; soldier.set_physics_process(false); soldier.cooldown=8
+	host.coop.clock+=1; host.coop._process(.2)
+	var soldier_copy=guest.coop.replicas[soldier.get_instance_id()]
+	check(soldier_copy.species=="musketeer" and soldier_copy.model.get_child(0).reloading,"musketeer model and reload state replicate to the second player")
+	host.coop.send_to(2,"ballistic_effect",[PackedVector3Array([soldier.position+Vector3.UP,soldier.position+Vector3.UP+Vector3.RIGHT*5]),"split-fx-test",1])
+	check(guest.combat_fx.shots.has("split-fx-test"),"smoky firearm trails replicate to the other viewport")
+	host.coop.send_to(2,"surface_impact",[soldier.position,Vector3.UP,"wood"])
+	check(guest.combat_fx.get_children().any(func(n):return str(n.name).begins_with("BulletScar")),"surface impacts replicate to the other viewport")
 	for game in session.games:
 		game.coop.leave(); set_multiplayer(null,game.get_path())
 		for suffix in ["",".bak"]: DirAccess.remove_absolute(ProjectSettings.globalize_path(game.progress.save_path+suffix))

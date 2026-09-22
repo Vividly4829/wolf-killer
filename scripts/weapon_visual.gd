@@ -324,6 +324,14 @@ func _spawn_smoke() -> void:
 	cloud.top_level=true
 	cloud.global_transform=global_transform
 	cloud.global_position=to_global(muzzle_position)
+	# Three tapered tongues project forward from the actual firing barrel.
+	for i in 3:
+		var flame:=MeshInstance3D.new(); var shape:=CylinderMesh.new()
+		shape.top_radius=.003; shape.bottom_radius=.07-i*.018; shape.height=.44-i*.10; shape.radial_segments=7
+		flame.mesh=shape; flame.rotation.x=-PI/2; flame.position.z=-shape.height*.5
+		var mat:=preload("res://scripts/combat_fx.gd").material(Color(1,.3+i*.24,.03+i*.23,.9),true)
+		flame.material_override=mat; flame.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF; cloud.add_child(flame)
+		var fade:=flame.create_tween(); fade.tween_property(mat,"albedo_color:a",0,.16); fade.tween_callback(flame.queue_free)
 	var puffs:=10 if _action=="muzzle" else 5
 	for i: int in puffs:
 		var puff:=MeshInstance3D.new()

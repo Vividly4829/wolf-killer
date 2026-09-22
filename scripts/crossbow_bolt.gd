@@ -83,9 +83,9 @@ func _physics_process(delta: float) -> void:
 	query.collide_with_areas = true
 	if is_instance_valid(game.coop.local_area) and shooter_peer==1: query.exclude = [game.coop.local_area.get_rid()]
 	elif game.coop.avatars.has(shooter_peer): query.exclude = [game.coop.avatars[shooter_peer].area.get_rid()]
-	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	var hit := preload("res://scripts/projectile_collision.gd").sweep(get_world_3d().direct_space_state,global_position,next,query.exclude,game.world.nav) if spec.get("explosive",false) else get_world_3d().direct_space_state.intersect_ray(query)
 	# Clip the last step at the range limit; never review an overshoot as a hit.
-	var remaining := maxf(0,float(spec.range)-distance)
+	var remaining := INF if spec.get("explosive",false) else maxf(0,float(spec.range)-distance)
 	var step_length := global_position.distance_to(next)
 	if step_length>remaining:
 		next = global_position.lerp(next,remaining/maxf(step_length,.0001))
@@ -96,7 +96,8 @@ func _physics_process(delta: float) -> void:
 	flight.append(endpoint,delta*global_position.distance_to(endpoint)/maxf(step_length,.000001))
 	if not hit.is_empty():
 		if spec.get("explosive",false):
-			global_position=hit.position+hit.normal*.08
+			global_position=hit.position+hit.normal*(.025 if hit.get("sphere_contact",false) else .12)
+			velocity=Vector3.ZERO
 			if spec.get("impact_fuse",false): detonate(); return
 			landed=true
 			game.coop.deliver_path(shooter_peer,review_serial,flight.report("LANDED / FUSE BURNING",false))
@@ -111,12 +112,13 @@ func _physics_process(delta: float) -> void:
 	global_position = next
 	var direction := velocity.normalized()
 	look_at(global_position + direction, Vector3.UP if absf(direction.y) < 0.98 else Vector3.RIGHT)
-	if spec.get("explosive",false) and (distance>=float(spec.range)-.001 or global_position.y<-.25):
+	if spec.get("explosive",false) and global_position.y<-.25:
+		global_position.y=.02
 		if spec.get("impact_fuse",false): detonate(); return
 		landed=true; velocity=Vector3.ZERO
 		game.coop.deliver_path(shooter_peer,review_serial,flight.report("LANDED / FUSE BURNING",false))
 		return
-	if distance >= float(spec.range)-.001 or age > 6.0:
+	if not spec.get("explosive",false) and (distance >= float(spec.range)-.001 or age > 6.0):
 		game.coop.deliver_path(shooter_peer,review_serial,flight.report("MISS / WEAPON RANGE LIMIT" if distance>=float(spec.range)-.001 else "MISS / FLIGHT TIME LIMIT"))
 		game.coop.projectile_finished(shooter_peer,review_serial)
 		queue_free()
@@ -127,8 +129,8 @@ func _physics_process(delta: float) -> void:
 func detonate() -> void:
 	if is_queued_for_deletion(): return
 	set_meta("detonated",true)
-	game.coop.deliver_path(shooter_peer,review_serial,flight.report("DETONATED / NO ANIMAL HIT"))
 	var radius: float = spec.blast_radius
+	var blast_targets: Array=[]
 	game.frighten_wildlife(global_position,radius*10)
 	game.coop.explosion_effect(global_position,radius)
 	if game.coop.active: game.coop.send_all("explosion_effect",[global_position,radius])
@@ -139,12 +141,16 @@ func detonate() -> void:
 		if not is_instance_valid(animal) or animal.dead: continue
 		var center: Vector3 = animal.position+Vector3.UP*.5
 		var d := global_position.distance_to(center)
-		if d>radius or not blast_visible(center): continue
+		if d>radius*1.5: continue
+		var exposed := blast_visible(center)
+		if d<radius*1.5: blast_targets.append({"position":center,"blocked":not exposed,"inside":d<=radius,"species":animal.get("species") if animal.get("species")!=null else "wolf"})
+		if d>radius or not exposed: continue
 		var amount: float = float(spec.damage)*(1-d/radius)
 		var before: float = animal.health
 		if animal.is_in_group("campaign_threats"): animal.damage(amount,true)
 		else: animal.damage(amount)
 		var report := {"entry":Vector3.ZERO,"end":Vector3.UP*.4,"organs":[],"zone":"BLAST","species":animal.get("species") if animal.get("species")!=null else "wolf","damage":before-animal.health,"calculated_damage":amount,"base_damage":spec.damage,"range_factor":1-d/radius,"multiplier":1.0,"distance":d,"weapon":spec.name}
+		if report.species in ["legionary","musketeer"]: report.species="raider"
 		report.target_uid=animal.get_instance_id()
 		report.target_transform=animal.global_transform
 		if shooter_peer==1:
@@ -161,6 +167,9 @@ func detonate() -> void:
 		if hunter==game.player: game.damage_player(amount)
 		else:
 			game.coop.shooter=0; game.coop.friendly_hit(hunter.peer_id,amount); game.coop.shooter=1
+	var path := flight.report("DETONATED / BLAST RADIUS %.1f m"%radius)
+	path.blast={"center":global_position,"radius":radius,"damage":spec.damage,"targets":blast_targets}
+	game.coop.deliver_path(shooter_peer,review_serial,path)
 	queue_free()
 func blast_visible(point: Vector3) -> bool:
 	var ray := PhysicsRayQueryParameters3D.create(global_position+Vector3.UP*.15,point,1)

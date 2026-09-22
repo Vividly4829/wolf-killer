@@ -548,3 +548,13 @@ Only dedicated limb hits count toward these thresholds. Legs/wings disappear fro
 ### Compact HUD and round rewards
 
 The gameplay HUD is smaller by default, including the condition avatar, map and shot reviews. Hit and miss X-rays stay fully opaque. Animal hits show actual damage in large red text, per-animal red replay labels, and a varied flesh-impact sound for the shooter. Keyboard **X** restores larger HUD details for eight seconds and still cycles older shots; the X-ray and replay remain slightly smaller and anchored clear of the aiming area. **Double-tap X** within 320 ms to close the review and return to the compact HUD; controller D-pad down expands that player's shot review. Stores and menus retain their normal size. The round credit row lists gross rewards received by every connected player (P1–P3); purchases do not reduce it. It resets when the next round begins at the cabin or a new run starts. Shared rewards still go to every player.
+
+## Gunfire, blast coverage and musketeer patrols
+
+Firearms emit brief orange barrel flames and thin, fading smoke along their recorded bullet paths. Hits kick up soil, stone chips, wood fragments or leaves; nearby foliage briefly sways. These cosmetic effects are capped at 64 active groups. Split-screen and online clients receive the effects.
+
+Explosives sweep a small sphere along their movement and check terrain seams, so fast grenades land on slopes instead of tunnelling through them. Timed grenades keep falling until they land or their fuse expires, even beyond nominal throwing range. The X-ray shows the actual blast radius, falloff ring and exposed/covered targets; the replay shows the radius in world space.
+
+From wave 11, an optional Napoleonic-inspired musketeer platoon can appear. Soldiers wear navy coats and shakos, form ranks, raise muskets before firing staggered volleys, reload slowly and use bayonets up close. Their physical musket balls stop at walls. Existing raiders retain their bows and throwing weapons.
+
+Validation: `tests/test_combat_world_fx.gd`, `tests/test_hunting_combat_polish.gd`, `tests/test_split_session.gd` and `tests/test_campaign.gd`.

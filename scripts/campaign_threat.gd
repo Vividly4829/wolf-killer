@@ -32,7 +32,7 @@ var voice_left:=0.0
 var raider_weapon:=-1
 func _ready() -> void:
 	add_to_group("campaign_threats")
-	max_health=110 if species in ["raider","legionary"] else 260
+	max_health=110 if species in ["raider","legionary","musketeer"] else 260
 	health=max_health; cover_side=-1 if randf()<.5 else 1
 	model=Node3D.new(); add_child(model)
 	if species=="bear": build_bear()
@@ -41,11 +41,11 @@ func _ready() -> void:
 	var hit:=Area3D.new(); hit.collision_layer=2; hit.collision_mask=0
 	hit.set_meta("wolf",self); hit.set_meta("hit_zone","body"); add_child(hit)
 	var shape:=CollisionShape3D.new(); var body:=CapsuleShape3D.new()
-	body.radius=.30 if species in ["raider","legionary"] else .52; body.height=1.8 if species in ["raider","legionary"] else 2.0
+	body.radius=.30 if species in ["raider","legionary","musketeer"] else .52; body.height=1.8 if species in ["raider","legionary","musketeer"] else 2.0
 	shape.shape=body; shape.position.y=.90
 	if species=="bear": shape.rotation.x=PI/2
 	hit.add_child(shape)
-	var organs: Array=preload("res://scripts/human_xray.gd").ORGANS if species in ["raider","legionary"] else preload("res://scripts/wildlife_anatomy.gd").organs("bear")
+	var organs: Array=preload("res://scripts/human_xray.gd").ORGANS if species in ["raider","legionary","musketeer"] else preload("res://scripts/wildlife_anatomy.gd").organs("bear")
 	for organ in organs:
 		var extra:=CollisionShape3D.new(); var volume:=SphereShape3D.new(); volume.radius=1
 		extra.shape=volume; extra.position=organ.center; extra.scale=organ.radii*1.1; hit.add_child(extra)
@@ -80,7 +80,7 @@ func build_raider() -> void:
 	gun.position=Vector3(.17,1.22,.30); gun.rotation.y=PI; model.add_child(gun)
 
 func visible_to(p: Vector3) -> bool:
-	var ray=PhysicsRayQueryParameters3D.create(position+Vector3.UP*(1.5 if species in ["raider","legionary"] else .9),p+Vector3.UP,1)
+	var ray=PhysicsRayQueryParameters3D.create(position+Vector3.UP*(1.5 if species in ["raider","legionary","musketeer"] else .9),p+Vector3.UP,1)
 	return get_world_3d().direct_space_state.intersect_ray(ray).is_empty()
 func hear(origin: Vector3) -> void:
 	if dead: return
@@ -88,7 +88,7 @@ func hear(origin: Vector3) -> void:
 	if not alerted:
 		alerted=true; warning=2.5 if species=="bear" else 1.7
 		if species=="bear": bear_voice()
-		if position.distance_to(game.player.position)<45: game.show_notice("A bear huffs and stamps." if species=="bear" else "Shields raised! Legionaries advance." if species=="legionary" else "A raider shouts: Who's there?",3)
+		if position.distance_to(game.player.position)<45: game.show_notice("A bear huffs and stamps." if species=="bear" else "Shields raised! Legionaries advance." if species=="legionary" else "Muskets raised! Take cover." if species=="musketeer" else "A raider shouts: Who's there?",3)
 func bear_voice() -> void:
 	voice_left=randf_range(2.5,4.5)
 	game.sounds.play_at("bear_growl",position,-3,.98)
@@ -106,18 +106,18 @@ func choose_target() -> Node3D:
 		if d<5 or d<noise*42 or (d<sight and visible_to(candidate.position)):
 			if d<best: result=candidate; best=d
 	# Predators and raiders can fight; loud combat creates real opportunities.
-	if species in ["raider","legionary"]:
+	if species in ["raider","legionary","musketeer"]:
 		for enemy in game.wolves+game.nodes_in_group("campaign_threats"):
-			if enemy==self or enemy.dead or enemy.get("species") in ["raider","legionary"]: continue
+			if enemy==self or enemy.dead or enemy.get("species") in ["raider","legionary","musketeer"]: continue
 			var d:=position.distance_to(enemy.position)
 			if d<minf(best,25) and visible_to(enemy.position): result=enemy; best=d
 	else:
 		for enemy in game.nodes_in_group("campaign_threats"):
-			if enemy.species in ["raider","legionary"] and not enemy.dead and position.distance_to(enemy.position)<minf(best,18): result=enemy; best=position.distance_to(enemy.position)
+			if enemy.species in ["raider","legionary","musketeer"] and not enemy.dead and position.distance_to(enemy.position)<minf(best,18): result=enemy; best=position.distance_to(enemy.position)
 	return result
 func _physics_process(delta: float) -> void:
 	if dead or is_queued_for_deletion() or game.coop.client() or not game.is_playing(): return
-	if species in ["raider","legionary"]: model.get_child(0).set_motion(2.8 if not route.is_empty() else 0,false,alerted,species=="legionary" and cooldown>.85)
+	if species in ["raider","legionary","musketeer"]: model.get_child(0).set_motion(2.8 if not route.is_empty() else 0,false,alerted,species=="legionary" and cooldown>.85)
 	voice_left=maxf(0,voice_left-delta)
 	if species=="bear" and alerted and voice_left<=0: bear_voice()
 	phase+=delta; cooldown=maxf(0,cooldown-delta); warning=maxf(0,warning-delta); memory_left-=delta
@@ -147,7 +147,7 @@ func _physics_process(delta: float) -> void:
 					var p:=position+away.rotated(Vector3.UP,i*TAU/8)*5
 					var ray=PhysicsRayQueryParameters3D.create(target.position+Vector3.UP,p+Vector3.UP,1)
 					if not get_world_3d().direct_space_state.intersect_ray(ray).is_empty(): goal=p; break
-		if species=="legionary": goal=formation_goal(goal)
+		if species in ["legionary","musketeer"]: goal=formation_goal(goal)
 		if not search:
 			var cell: int=game.world.wolf_nav.nearest(goal.x,goal.z,5)
 			if cell>=0:
@@ -155,7 +155,7 @@ func _physics_process(delta: float) -> void:
 				search.start(game.world.wolf_nav,position,game.world.wolf_nav.point(cell))
 	if is_instance_valid(target) and warning<=0 and cooldown<=0 and visible_to(target.position):
 		var range_to:=position.distance_to(target.position)
-		if species=="raider" and range_to<42: shoot()
+		if species in ["raider","musketeer"] and range_to<(65 if species=="musketeer" else 42): shoot()
 		elif species=="legionary" and range_to<1.9: strike(target,24.0); cooldown=1.25
 		elif species=="bear" and range_to<2.25: strike(target,36.0); cooldown=1.55
 	while not route.is_empty() and Vector2(position.x-route[0].x,position.z-route[0].z).length()<.05: route.remove_at(0)
@@ -173,7 +173,7 @@ func _physics_process(delta: float) -> void:
 		position=game.world.wolf_nav.move_position(position,step.x,step.z)
 		moving=position.distance_to(prior)>.002
 		if moving: rotation.y=lerp_angle(rotation.y,atan2(direction.x,direction.z),delta*6)
-	if is_instance_valid(target) and species in ["raider","legionary"]:
+	if is_instance_valid(target) and species in ["raider","legionary","musketeer"]:
 		var direction:=target.position-position; rotation.y=lerp_angle(rotation.y,atan2(direction.x,direction.z),delta*8)
 	for i in legs.size(): legs[i].rotation.x=sin(phase*(10 if alerted else 4)+i*PI)*(.24 if moving else 0)
 func shoot() -> void:
@@ -207,8 +207,8 @@ func receive_ballistic_hit(amount: float,point: Vector3,direction: Vector3,_zone
 		paid=true; hear(point-direction*4)
 		return limbs.hit(_zone,amount,_force,point,direction)
 	var entry:=to_local(point); var ray: Vector3=(global_basis.inverse()*direction).normalized()
-	var report: Dictionary=preload("res://scripts/human_xray.gd").trace(entry,ray,amount,penetration) if species in ["raider","legionary"] else preload("res://scripts/wildlife_anatomy.gd").trace("bear",entry,ray,penetration*.75)
-	report.species="raider" if species in ["raider","legionary"] else "bear"; report.zone="BODY"
+	var report: Dictionary=preload("res://scripts/human_xray.gd").trace(entry,ray,amount,penetration) if species in ["raider","legionary","musketeer"] else preload("res://scripts/wildlife_anatomy.gd").trace("bear",entry,ray,penetration*.75)
+	report.species="raider" if species in ["raider","legionary","musketeer"] else "bear"; report.zone="BODY"
 	report.instant_fatal=report.organs.has("brain") or report.organs.has("heart")
 	var before:=health; var mult: float=report.multiplier*vital_bonus
 	paid=true; bleeding_rate=maxf(bleeding_rate,.8 if report.organs.is_empty() else 2.2)
@@ -223,7 +223,7 @@ func damage(amount: float,reward_hunter: bool=false) -> void:
 	paid=paid or reward_hunter
 	if health<=0:
 		dead=true; reaction.die()
-		if species in ["raider","legionary"]: model.get_child(0).set_process(false)
+		if species in ["raider","legionary","musketeer"]: model.get_child(0).set_process(false)
 		for area in find_children("*","Area3D",true,false): area.set_deferred("collision_layer",0)
 		# Required threats count even when the player engineers an animal fight.
 		game.campaign.animal_killed(self,true)

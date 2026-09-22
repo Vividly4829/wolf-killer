@@ -17,6 +17,7 @@ const WEAPONS: Array[Dictionary] = WeaponCatalog.WEAPONS
 
 var controller_device := -1
 var split_session: Node
+var combat_fx: Node3D
 var world: Node3D
 var player: Node3D
 var hud_detail_left := 0.0
@@ -142,6 +143,7 @@ func _ready() -> void:
 		progress.load_progress()
 	world = WorldScript.new()
 	add_child(world)
+	combat_fx=preload("res://scripts/combat_fx.gd").new(); combat_fx.game=self; add_child(combat_fx)
 	gore = GoreScript.new()
 	add_child(gore)
 	player = PlayerScript.new()
@@ -331,6 +333,7 @@ func start_from_menu() -> void:
 
 func start_run(sandbox: bool = false, use_menu_settings: bool = false) -> void:
 	coop.reset_round_earnings()
+	combat_fx.shots.clear()
 	restore_campaign()
 	campaign.reset()
 	free_play = sandbox
@@ -743,6 +746,13 @@ func fire_weapon() -> void:
 func fire_ballistic(origin: Vector3,direction: Vector3,weapon: Dictionary,review_serial: int,peer: int,excluded: Array[RID]) -> void:
 	var result: Dictionary=preload("res://scripts/ballistic_trace.gd").cast(get_world_3d().direct_space_state,origin,direction,weapon,excluded)
 	coop.deliver_path(peer,review_serial,result.path)
+	if not weapon.get("laser",false):
+		var points: PackedVector3Array=result.path.points.duplicate()
+		if peer==1: points[0]=player.weapon.to_global(player.weapon.muzzle_position)
+		elif coop.avatars.has(peer) and is_instance_valid(coop.avatars[peer].weapon): points[0]=coop.avatars[peer].weapon.to_global(coop.avatars[peer].muzzle)
+		var token := "%d:%d"%[peer,review_serial]
+		coop.ballistic_effect(points,token,peer)
+		if coop.active: coop.send_all("ballistic_effect",[points,token,peer])
 	if weapon.get("laser",false):
 		var endpoint: Vector3=result.path.points[-1]
 		var beam_start:=origin+Vector3(0,-.18,0)
@@ -799,7 +809,10 @@ func resolve_weapon_hit(hit: Dictionary, direction: Vector3, weapon: Dictionary,
 			shot_review.record(report,review_serial)
 		hit_flash = 0.15
 	else:
-		_spawn_impact(hit.position, false)
+		var surface := str(collider.get_parent().name).to_lower() if is_instance_valid(collider) else "ground"
+		var kind := "wood" if ["tree","trunk","pine","birch","wood","fence","cabin","house"].any(func(word):return surface.contains(word)) else "stone" if surface.contains("rock") or surface.contains("stone") else "soil"
+		coop.surface_impact(hit.position,hit.get("normal",Vector3.UP),kind)
+		if coop.active: coop.send_all("surface_impact",[hit.position,hit.get("normal",Vector3.UP),kind])
 
 func _spawn_impact(point: Vector3, on_wolf: bool) -> void:
 	var marker := MeshInstance3D.new()

@@ -8,6 +8,7 @@ var mauling := 0
 var _actual_speed := 0.0
 var area: Area3D
 var weapon_index := -1
+var muzzle:=Vector3.ZERO
 var weapon: Node3D
 var character: Node3D
 var previous_position:=Vector3.INF
@@ -17,6 +18,7 @@ func equip(index: int) -> void:
 	weapon_index = index
 	if is_instance_valid(weapon): weapon.queue_free()
 	var model: Dictionary = preload("res://scripts/weapon_model_builder.gd").new().build(index)
+	muzzle=model.muzzle
 	weapon = model.root
 	weapon.position = Vector3(.16,1.15,-.27)
 	add_child(weapon)

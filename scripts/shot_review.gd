@@ -85,7 +85,7 @@ func capture_nearby() -> Array[Dictionary]:
 		if animal is IslandWolf:
 			pose.basis=pose.basis.scaled_local(Vector3.ONE*animal.size_scale)
 			if animal.werewolf: species="werewolf"
-		if species=="legionary": species="raider"
+		if species in ["legionary","musketeer"]: species="raider"
 		records.append({"target_uid":target_id,"target_transform":pose,"species":species,"distance_to_line":distance,"organs":[],"entry":Vector3.ZERO,"end":Vector3.UP*.001,"unhit":true})
 	records.sort_custom(func(a,b): return a.distance_to_line<b.distance_to_line)
 	return records.slice(0,8)
@@ -164,9 +164,10 @@ func _process(delta: float) -> void:
 	visible=remaining>0 and game.mode in ["playing","resting"]
 	replay.tick(delta,visible)
 	var shown: Array[Dictionary]=target_reports(displayed().reports)
-	wildlife.visible=not shown.is_empty() and str(shown.back().get("species","")) in ["deer","duck","goose","mink","bear"]
-	human.visible=not shown.is_empty() and str(shown.back().get("species","")) in ["hunter","raider","werewolf"]
-	xray.visible=not shown.is_empty() and str(shown.back().get("species","wolf"))=="wolf"
+	var blast: bool=displayed().trajectories.any(func(path): return path.has("blast"))
+	wildlife.visible=not blast and not shown.is_empty() and str(shown.back().get("species","")) in ["deer","duck","goose","mink","bear"]
+	human.visible=not blast and not shown.is_empty() and str(shown.back().get("species","")) in ["hunter","raider","werewolf"]
+	xray.visible=not blast and not shown.is_empty() and str(shown.back().get("species","wolf"))=="wolf"
 	front_views[0].visible=xray.visible; front_views[1].visible=human.visible; front_views[2].visible=wildlife.visible
 func close_review() -> void:
 	dismissed=true
@@ -194,6 +195,7 @@ static func damage_text(hits: Array[Dictionary]) -> String:
 func _draw() -> void:
 	var shown:=displayed()
 	var hits: Array[Dictionary]=target_reports(shown.reports)
+	var blast: bool=shown.trajectories.any(func(path): return path.has("blast"))
 	var box:=StyleBoxFlat.new()
 	box.bg_color=Color(.015,.028,.047,.95)
 	box.border_color=Color("4c7e91")
@@ -204,7 +206,7 @@ func _draw() -> void:
 	label_at(24,("SHOT %03d / FLIGHT REVIEW" if hits.is_empty() else "SHOT %03d / RANGE REVIEW" if target_review else "SHOT %03d / BONE X-RAY") % int(shown.serial),Color("eac28b"),16)
 	label_at(45,str(shown.caption),Color("e9e5dd"),12)
 	if hits.is_empty():
-		label_at(86,"No animal hit to inspect.")
+		if not blast: label_at(86,"No animal hit to inspect.")
 		label_at(286,"Damage: 0")
 	else:
 		var calculated:=0.0
@@ -216,7 +218,7 @@ func _draw() -> void:
 			draw_string(font,Vector2(266,293),"%.0f cm tissue"%(float(shot.get("body_depth_m",shot.entry.distance_to(shot.end)))*100),HORIZONTAL_ALIGNMENT_LEFT,132,10,Color("ffb3a8"))
 		label_at(315,"%.1f base × %.2f range × %.2f zone = %.1f calculated" % [shot.get("base_damage",0.0),shot.get("range_factor",1.0),shot.multiplier,calculated],Color("ffb3a8"),11)
 	label_at(335,"%s older / %d of %d / %s" % ["D-pad down" if game.controller_device>=0 else "X browse / double X close",selected+1,history.size(),"FATAL VITAL HIT" if not hits.is_empty() and hits.back().get("instant_fatal",false) else "combat continues"],Color("91acb9"),10)
-	if not hits.is_empty():
+	if not hits.is_empty() and not blast:
 		draw_string(font,Vector2(14,66),"SIDE",HORIZONTAL_ALIGNMENT_LEFT,-1,10,Color("91acb9"))
 		draw_string(font,Vector2(260,66),"FRONT",HORIZONTAL_ALIGNMENT_LEFT,-1,10,Color("91acb9"))
 	_draw_trajectory(shown.trajectories,hits.is_empty())
@@ -236,6 +238,9 @@ static func plot_samples(path: Dictionary) -> PackedVector2Array:
 func _draw_trajectory(paths: Array[Dictionary],miss: bool) -> void:
 	if paths.is_empty(): return
 	var shot: Dictionary = paths.back()
+	if shot.has("blast"):
+		_draw_blast(shot.blast)
+		return
 	var graph := Rect2(18,121,342,121) if miss else Rect2(18,198,342,44)
 	var max_x := .1
 	var low := 0.0
@@ -311,3 +316,22 @@ func _draw_trajectory(paths: Array[Dictionary],miss: bool) -> void:
 	if miss:
 		label_at(272,"%s / %.1f m from muzzle" % [shot.weapon,shot.distance])
 		label_at(309,"Weapon limit %.0f m / %s" % [shot.limit,"arc: gold / aim: dashed" if shot.curved else "straight beam"],Color("91acb9"),11)
+
+func _draw_blast(blast: Dictionary) -> void:
+	var center:=Vector2(205,151)
+	var radius:=75.0
+	draw_circle(center,radius,Color(.5,.10,.02,.22))
+	draw_arc(center,radius,0,TAU,64,Color("ff9955"),2,true)
+	draw_arc(center,radius*.5,0,TAU,48,Color("ffcc77"),1,true)
+	draw_circle(center,4,Color("ffe0a5"))
+	label_at(70,"BLAST AREA / TOP DOWN",Color("ffbb88"),13)
+	for target in blast.get("targets",[]):
+		var offset: Vector3=target.position-blast.center
+		var point:=center+Vector2(offset.x,offset.z)*radius/float(blast.radius)
+		point=point.clamp(Vector2(20,80),Vector2(390,225))
+		var color:=Color("ff4545") if target.inside and not target.blocked else Color("8199ac")
+		draw_circle(point,4,color)
+		if target.blocked:
+			draw_line(point-Vector2(4,4),point+Vector2(4,4),Color.WHITE,1)
+	label_at(242,"RED: exposed  /  X: cover  /  inner ring: 50% falloff",Color("eabda4"),10)
+	label_at(257,"%.1f m radius / %.0f maximum damage / walls block blast"%[blast.radius,blast.damage],Color("ffbb88"),11)

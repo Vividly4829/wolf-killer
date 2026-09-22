@@ -304,7 +304,7 @@ func _process(delta: float) -> void:
 	for animal in game.nodes_in_group("wildlife"):
 		animals.append({"id":animal.get_instance_id(),"limbs":animal.limbs.snapshot(),"max_health":animal.max_health,"p":animal.position,"yaw":animal.rotation.y,"health":animal.health,"type":animal.species,"bleed":animal.bleeding_rate,"fear":animal.fear_left,"alerted":animal.alerted,"move":animal.velocity.length(),"aquatic":animal.aquatic,"dead":animal.dead,"down":animal.reaction.down,"flinch":animal.reaction.flinch})
 	for actor in game.nodes_in_group("campaign_threats"):
-		animals.append({"id":actor.get_instance_id(),"limbs":actor.limbs.snapshot() if actor.limbs else {},"p":actor.position,"yaw":actor.rotation.y,"health":actor.health,"type":actor.species,"weapon":actor.raider_weapon,"dead":actor.dead,"mission":actor.get_meta("mission",false),"down":actor.reaction.down,"flinch":actor.reaction.flinch,"move":2.8 if not actor.route.is_empty() else 0.0,"alerted":actor.alerted,"attack":actor.species=="legionary" and actor.cooldown>.85})
+		animals.append({"id":actor.get_instance_id(),"limbs":actor.limbs.snapshot() if actor.limbs else {},"p":actor.position,"yaw":actor.rotation.y,"health":actor.health,"type":actor.species,"weapon":actor.raider_weapon,"dead":actor.dead,"mission":actor.get_meta("mission",false),"down":actor.reaction.down,"flinch":actor.reaction.flinch,"move":2.8 if not actor.route.is_empty() else 0.0,"alerted":actor.alerted,"reload":actor.cooldown>1.0,"attack":actor.species=="legionary" and actor.cooldown>.85})
 	var projectiles: Array = []
 	for bolt in game.nodes_in_group("player_bolts")+game.nodes_in_group("enemy_bolts"):
 		projectiles.append({"id":bolt.get_instance_id(),"p":bolt.position,"v":bolt.velocity,"type":bolt.spec.id,"fuse":maxf(0,float(bolt.spec.get("fuse",0))-float(bolt.get("age"))) if bolt.spec.get("explosive",false) and not bolt.spec.get("launcher",false) else -1.0})
@@ -385,8 +385,8 @@ func state(hunters: Array,animals: Array,wave: int,mode: String,waiting: bool,pe
 			if animal.type=="wolf":
 				node = preload("res://scripts/wolf.gd").new()
 				node.configure(game,game.world.wolf_nav,mini(wave,12),int(animal.seed))
-			elif animal.type in ["bear","raider","legionary"]:
-				node=preload("res://scripts/legionary.gd").new() if animal.type=="legionary" else preload("res://scripts/campaign_threat.gd").new()
+			elif animal.type in ["bear","raider","legionary","musketeer"]:
+				node=preload("res://scripts/musketeer.gd").new() if animal.type=="musketeer" else preload("res://scripts/legionary.gd").new() if animal.type=="legionary" else preload("res://scripts/campaign_threat.gd").new()
 				node.game=game; node.species=animal.type
 				node.raider_weapon=int(animal.get("weapon",21))
 			else:
@@ -404,11 +404,12 @@ func state(hunters: Array,animals: Array,wave: int,mode: String,waiting: bool,pe
 			node.position = animal.p
 			node.rotation.y = animal.yaw
 		apply_animal_life(node,animal)
-		if animal.type in ["raider","legionary"]:
+		if animal.type in ["raider","legionary","musketeer"]:
 			node.model.get_child(0).set_motion(float(animal.get("move",0)),false,animal.get("alerted",false),animal.get("attack",false))
 			node.model.get_child(0).set_process(not node.dead)
+		if animal.type=="musketeer": node.model.get_child(0).reloading=animal.get("reload",false)
 		if animal.type=="wolf" and node.werewolf: node.model.set_process(not node.dead)
-		if animal.type not in ["wolf","bear","raider","legionary"]:
+		if animal.type not in ["wolf","bear","raider","legionary","musketeer"]:
 			node.aquatic = animal.get("aquatic",false)
 			if animal.get("bleed",0)>0 and not node.aquatic and clock-float(node.get_meta("last_trail",-10))>.55:
 				game.gore.blood_pool(node.position,.13)
@@ -722,3 +723,16 @@ func quick_throw_shot(origin: Vector3,direction: Vector3,weapon: int,serial: int
 	var bolt=preload("res://scripts/crossbow_bolt.gd").new(); game.add_child(bolt)
 	bolt.launch(game,origin+direction.normalized()*.24,direction.normalized(),preload("res://scripts/weapon_catalog.gd").weapon(weapon))
 	bolt.shooter_peer=id; bolt.review_serial=serial
+
+@rpc("authority","call_remote","unreliable")
+func ballistic_effect(points: PackedVector3Array,token: String,source: int) -> void:
+	if game.combat_fx.ballistic(points,token) and source>=0 and source!=peer_id():
+		game.combat_fx.muzzle(points[0],(points[1]-points[0]).normalized())
+@rpc("authority","call_remote","unreliable")
+func surface_impact(point: Vector3,normal: Vector3,kind: String) -> void:
+	game.combat_fx.impact(point,normal,kind)
+
+@rpc("authority","call_remote","unreliable")
+func enemy_muzzle(point: Vector3,direction: Vector3) -> void:
+	game.combat_fx.muzzle(point,direction)
+	game.sounds.play_at("musket",point,-7)

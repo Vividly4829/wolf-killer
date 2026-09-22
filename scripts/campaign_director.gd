@@ -112,7 +112,7 @@ func begin() -> void:
 	if rng.randf()<Catalog.encounter_chance(game.level):
 		var choices: Array=["wolves","wolves","patrol","bear"]
 		if game.level>=6: choices.append("werewolf")
-		if game.level>10: choices.append("legionaries")
+		if game.level>10: choices.append_array(["legionaries","musketeers"])
 		choices.erase(last_event)
 		event=choices[rng.randi_range(0,choices.size()-1)]
 	last_event=event
@@ -289,7 +289,7 @@ func _process(delta: float) -> void:
 	if repair_timer<=0: repair_timer=12; ensure_huntable()
 func warn_event() -> void:
 	warned=true; event_at=elapsed; event_origin=encounter_point()
-	var cues={"legionaries":"Metal rattles beyond the trees. A line of red shields approaches.","werewolf":"A harsh, unnatural roar echoes through the trees.","wolves":"A distant howl. Something is moving beyond the trees.","carcass_pack":"Wolves are calling near the hunting grounds.","scent_pack":"Howls drift along your trail. Wolves are following the hunt.","migration":"Answering howls: the packs are moving.","crossfire":"Gunfire has drawn distant howls.","patrol":"Bootsteps and voices carry from another shore.","scout":"A returning scout whistles in the distance.","pursuit":"Shouts behind you. The camp has noticed the theft.","bear":"Heavy tracks and disturbed brush near the cabins.","bear_claim":"A low bellow carries from the carcass trail.","fog":"Mist is rolling in from the water.","rain":"Dark clouds gather. Rain is coming.","wind":"The wind is rising across the water.","fever":"A chill and a cough. You may be developing a fever."}
+	var cues={"musketeers":"Boots march in time. A line of shakos and musket barrels emerges from the trees.","legionaries":"Metal rattles beyond the trees. A line of red shields approaches.","werewolf":"A harsh, unnatural roar echoes through the trees.","wolves":"A distant howl. Something is moving beyond the trees.","carcass_pack":"Wolves are calling near the hunting grounds.","scent_pack":"Howls drift along your trail. Wolves are following the hunt.","migration":"Answering howls: the packs are moving.","crossfire":"Gunfire has drawn distant howls.","patrol":"Bootsteps and voices carry from another shore.","scout":"A returning scout whistles in the distance.","pursuit":"Shouts behind you. The camp has noticed the theft.","bear":"Heavy tracks and disturbed brush near the cabins.","bear_claim":"A low bellow carries from the carcass trail.","fog":"Mist is rolling in from the water.","rain":"Dark clouds gather. Rain is coming.","wind":"The wind is rising across the water.","fever":"A chill and a cough. You may be developing a fever."}
 	announce(cues.get(event,"Something moves in the distance."))
 	if event in ["wolves","carcass_pack","scent_pack","migration","crossfire"]:
 		game.sounds.play_at("howl",event_origin,-8)
@@ -306,6 +306,14 @@ func launch_event() -> void:
 	# Recheck distance after the warning in case a player approached the clue.
 	if not distant_from_hunters(event_origin,30): event_origin=encounter_point()
 	match event:
+		"musketeers":
+			if game.level<=10: return
+			pack_serial+=1
+			for i in mini(10,5+(game.level-11)/5+game.coop.avatars.size()):
+				var soldier=preload("res://scripts/musketeer.gd").new()
+				soldier.game=game; soldier.species="musketeer"; soldier.squad=pack_serial; soldier.rank_index=i
+				game.add_child(soldier); soldier.position=reachable(event_origin+Vector3((i%3)*2.2,0,(i/3)*2.5))
+				soldier.home=soldier.position; soldier.hear(game.player.position)
 		"legionaries":
 			if game.level<=10: return
 			pack_serial+=1
