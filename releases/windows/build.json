@@ -3,12 +3,12 @@
   "version": "0.1.0",
   "platform": "Windows x86_64",
   "engine": "Godot 4.6.2 stable",
-  "source_commit": "cfc3aae850d3d24b68b5d08d435970727eb68b0d",
-  "built_utc": "2026-09-22T14:41:39.9739165Z",
+  "source_commit": "fc6960dec4a737e37cb83241dc756e0993f0f0ae",
+  "built_utc": "2026-09-22T14:51:17.0932116Z",
   "archive": "WolfIsland-Windows-x64.zip",
-  "archive_bytes": 65868379,
-  "archive_sha256": "194f545ad77c0d787ec2a18b0631b607b8c6c9adc3706aeeb6c1d6396ac7e5c8",
+  "archive_bytes": 65872032,
+  "archive_sha256": "155980951ff74b9cbc7cd8a377b6422067bd7d9cf84a22924e52ca7c2bd8a3c8",
   "executable": "WolfIsland.exe",
-  "executable_bytes": 139185512,
-  "executable_sha256": "7daf9511f20c701b039ca850002d63370990dc212a6eeb008e87d20694469d2d"
+  "executable_bytes": 139189448,
+  "executable_sha256": "1cd342feec36097380502af5219101a28968db3530f77b2b69543240715bf4a7"
 }
