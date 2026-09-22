@@ -293,7 +293,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if controller_device>=0: return
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.physical_keycode == KEY_ESCAPE:
-			if mode == "shop":
+			if mode == "weapon_stats":
+				set_mode("menu")
+			elif mode == "shop":
 				close_shop()
 			elif mode == "playing":
 				set_mode("paused")
@@ -703,12 +705,7 @@ func fire_weapon() -> void:
 		lemat_shot_ammo -= 1
 	else:
 		ammo[current_weapon] -= 1
-		if weapon.get("explosive",false) and not weapon.get("launcher",false) and not free_play:
-			var spent_slot: int=progress.owned.find(current_weapon)
-			progress.owned.remove_at(spent_slot)
-			if spent_slot<copy_magazines.size(): copy_magazines.remove_at(spent_slot)
-			current_slot=-1
-			progress.save_progress()
+
 	fire_cooldown = float(weapon.interval)
 	# Capture the shot before recoil moves the camera.
 	var camera: Camera3D = player.camera
@@ -833,14 +830,14 @@ func _spawn_impact(point: Vector3, on_wolf: bool) -> void:
 func reload_weapon() -> void:
 	if not is_playing() or is_struggling() or bandage_left > 0 or reload_left > 0 or current_ammo() == int(weapon_spec().magazine):
 		return
-	if free_play and current_weapon in [18,20]:
+	if free_play and current_weapon in [18,20,24,25]:
 		ammo[current_weapon]=int(weapon_spec().magazine)
 		fire_cooldown=float(weapon_spec().interval)
 		_sync_weapon_visual()
 		show_notice("Practice throws replenished.",2)
 		return
 	if current_reserve() <= 0 and not weapon_spec().get("laser",false):
-		show_notice("Out of ammunition. Visit the store or switch weapons.", 2.5)
+		show_notice("Used this round. One is restored free next round." if current_weapon in [24,25] else "Out of ammunition. Visit the store or switch weapons.", 2.5)
 		fire_cooldown = 0.5
 		return
 	_reload_weapon_id = current_weapon

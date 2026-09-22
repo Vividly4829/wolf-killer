@@ -29,6 +29,7 @@ var wolf_focus_label: Label
 var rest_shade: ColorRect
 var body_font: SystemFont
 var title_font: SystemFont
+var stats_page := 0
 var shop_selection: int = -1
 var shop_filter: String = "All"
 var shop_scroll: ScrollContainer
@@ -234,6 +235,8 @@ func refresh_panel() -> void:
 	overlay.visible = game.mode != "playing"
 	if game.mode == "menu":
 		_menu()
+	elif game.mode == "weapon_stats":
+		_weapon_stats()
 	elif game.mode in ["connecting","connection_error"]:
 		_connection()
 	elif game.mode == "shop":
@@ -293,6 +296,7 @@ func _menu() -> void:
 	_label(overlay,"Type a value or use the arrows.\nCustom credits apply to both split-screen players.\nDeath restarts at level 1; money stays.\nJoining online uses the host's level.",Vector2(490,340),13,MUTED)
 	_button(overlay, "WAKE IN THE CABIN    →", Rect2(50, 453, 390, 55), game.start_from_menu, true)
 	_button(overlay, "FREE PLAY / ALL WEAPONS", Rect2(50, 518, 390, 48), game.start_free_play)
+	_button(overlay, "WEAPON STATS & PRICES", Rect2(935, 453, 300, 48), open_weapon_stats)
 	_button(overlay, "QUIT", Rect2(800, 511, 100, 42), game.quit_game)
 	_button(overlay,"HOST 3-PLAYER CO-OP",Rect2(470,453,295,48),game.coop.host_session)
 	var address := LineEdit.new()
@@ -814,3 +818,60 @@ func _connection() -> void:
 	detail.size=Vector2(680,130); detail.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
 	if failed: _button(overlay,"RETRY / CONTROLLER A",Rect2(430,440,420,55),game.coop.retry_connection,true)
 	_button(overlay,"MAIN MENU / CONTROLLER Y",Rect2(430,515,420,48),game.return_to_menu)
+
+func open_weapon_stats() -> void:
+	commit_start_options()
+	stats_page = 0
+	game.set_mode("weapon_stats")
+
+func step_stats_page(direction: int) -> void:
+	stats_page = posmod(stats_page + direction, ceili(game.WEAPONS.size() / 7.0))
+	refresh_panel()
+
+func _weapon_stats() -> void:
+	_block(overlay, Rect2(0, 0, 1280, 720), Color("101b24"))
+	_label(overlay, "FIELD GUIDE / WEAPONS & PRICES", Vector2(38, 24), 32, PAPER)
+	_label(overlay, "Sorted by price · Base damage before distance, armour and shot placement · Healthy reload times", Vector2(40, 70), 14, MUTED)
+	var indices: Array = range(game.WEAPONS.size())
+	indices.sort_custom(func(a, b): return int(game.WEAPONS[a].price) < int(game.WEAPONS[b].price))
+	var columns := [40, 360, 440, 555, 705, 815, 915, 1015]
+	var headings := ["WEAPON", "CREDITS", "DAMAGE", "EFF. / MAX m", "LOAD + SPARE", "RELOAD s", "SHOT GAP s", "SPREAD °"]
+	for c in columns.size():
+		_label(overlay, headings[c], Vector2(columns[c], 111), 12, ACCENT)
+	for row in 7:
+		var slot: int = stats_page * 7 + row
+		if slot >= indices.size(): break
+		var index: int = indices[slot]
+		var data: Dictionary = game.WeaponCatalog.weapon(index)
+		var y: float = 140 + row * 65
+		var stripe := _block(overlay, Rect2(30, y, 1220, 61), Color(.065, .10, .13) if row % 2 == 0 else Color(.045, .075, .10))
+		stripe.name = "WeaponStatsRow%d" % index
+		var explosive: bool = data.get("explosive", false)
+		var per_round: bool = explosive and not data.get("launcher", false)
+		var damage := "%.0f" % float(data.damage)
+		if int(data.pellets) > 1: damage = "%d × %.0f" % [int(data.pellets), float(data.damage)]
+		if explosive: damage += " blast"
+		var ranges := "%.0f / %.0f" % [data.effective_range, data.range]
+		if explosive: ranges = "— / %.0f" % data.range
+		var reload_text := "Next round" if per_round else ("%.2f" % float(data.reload))
+		var values := [data.name, str(data.price), damage, ranges, "%d + %d" % [data.magazine, data.reserve], reload_text, "%.2f" % float(data.interval), "%.2f" % rad_to_deg(float(data.spread))]
+		for c in columns.size():
+			var cell := _label(overlay, values[c], Vector2(columns[c], y + 7), 11 if c == 0 else 13, PAPER)
+			cell.name = "Stat%d_%d" % [index, c]
+			cell.size.x = (columns[c + 1] - columns[c] - 8) if c < columns.size() - 1 else 210
+			cell.clip_text = true
+		var note := "%s · Penetration %.2f m · Noise %.0f m" % [data.ammo_type, data.penetration, data.noise_radius]
+		if explosive: note = "Blast radius %.0f m · %s · Friendly fire" % [data.blast_radius, "Impact fuse" if data.get("impact_fuse", false) else ("Fuse %.1f s" % data.fuse)]
+		if per_round: note += " · One per round, replenished free; kept after throwing"
+		elif data.get("laser", false): note += " · Crank to recharge; no spare ammunition needed"
+		elif index == 9:
+			var secondary: Dictionary = game.WeaponCatalog.secondary_weapon()
+			note += " · Secondary: %d × %.0f damage / %.0f m effective / %.2f s reload" % [secondary.pellets, secondary.damage, secondary.effective_range, secondary.reload]
+		elif index == 0: note += " · Starting weapon granted free; stand still to reload"
+		_label(overlay, note, Vector2(40, y + 34), 12, MUTED)
+	_label(overlay, "Shotgun damage is pellet count × damage per pellet. Effective range marks falloff; maximum is the flight limit (explosive reach is nominal).", Vector2(40, 608), 13, MUTED)
+	_label(overlay, "Spread is base cone deviation (lower is better); movement and aiming affect accuracy. Vital hits can be fatal.", Vector2(40, 630), 13, MUTED)
+	_button(overlay, "← PREVIOUS", Rect2(40, 665, 180, 38), func(): step_stats_page(-1))
+	_label(overlay, "PAGE %d / %d · D-pad ← / →" % [stats_page + 1, ceili(indices.size() / 7.0)], Vector2(250, 674), 14, ACCENT)
+	_button(overlay, "NEXT →", Rect2(560, 665, 160, 38), func(): step_stats_page(1))
+	_button(overlay, "BACK / ESC / CONTROLLER B", Rect2(880, 665, 355, 38), func(): game.set_mode("menu"))

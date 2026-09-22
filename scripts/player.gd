@@ -426,6 +426,11 @@ func jump() -> void:
 	if _jump_height<.02 and not is_crouching and (bool(_weapon_spec().get("move_reload",true)) or float(game.reload_left)<=0):
 		_jump_velocity=6.1*(1-leg_injury*.45); _emit_noise(.85,.35)
 func controller_button(button: int) -> void:
+	if game.mode=="weapon_stats":
+		if button in [JOY_BUTTON_DPAD_LEFT, JOY_BUTTON_LEFT_SHOULDER]: game.hud.step_stats_page(-1)
+		elif button in [JOY_BUTTON_DPAD_RIGHT, JOY_BUTTON_RIGHT_SHOULDER]: game.hud.step_stats_page(1)
+		elif button in [JOY_BUTTON_B, JOY_BUTTON_Y]: game.set_mode("menu")
+		return
 	if button==JOY_BUTTON_START and game.mode in ["playing","paused"]:
 		game.set_mode("paused" if game.mode=="playing" else "playing"); return
 	if game.mode in ["connecting","connection_error"]:

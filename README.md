@@ -558,3 +558,14 @@ Explosives sweep a small sphere along their movement and check terrain seams, so
 From wave 11, an optional Napoleonic-inspired musketeer platoon can appear. Soldiers wear navy coats and shakos, form ranks, raise muskets before firing staggered volleys, reload slowly and use bayonets up close. Their physical musket balls stop at walls. Existing raiders retain their bows and throwing weapons.
 
 Validation: `tests/test_combat_world_fx.gd`, `tests/test_hunting_combat_polish.gd`, `tests/test_split_session.gd` and `tests/test_campaign.gd`.
+
+
+## Weapon economy and field guide
+
+All 35 purchase prices now sit between 25 and 1,000 credits. The spear is the cheapest at 25; the drum Luger is the most expensive at 1,000. Prices weigh practical reach, accuracy, capacity, reload downtime, stealth and crowd control. The starter musket is still granted at the beginning of a run; extra copies cost 125.
+
+Budget fieldcraft and simple firearms cost 25–175; quiet precision weapons and revolvers occupy the middle; repeaters, heavy precision rifles and dual weapons cost more. Recurring explosives cost 275 for a grenade and 425 for dynamite. The launcher costs 900 and the rechargeable aether musket 950.
+
+Grenades and dynamite remain owned after use, each with one carried charge and no reserve. They restore one charge free at the next round's wake, including co-op players. Switching, re-equipping or buying ammunition does not replenish them mid-round. Death still loses weapons. Free Play allows reloading them for repeated practice.
+
+The main menu's **Weapon Stats & Prices** opens a five-page guide sorted by price. It reads live catalogue values for price, base damage/pellets, effective and maximum range, loaded/spare ammunition, actual reload time, shot interval, spread, penetration, noise and blast details. Use the page buttons or controller D-pad/LB/RB; Escape or controller B returns to the menu without discarding expedition settings.
