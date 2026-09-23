@@ -43,7 +43,7 @@ func build_raider() -> void:
 		var blade:=MeshInstance3D.new(); blade.mesh=sword; blade.material_override=character.mat("steel",Color("c8dce1"))
 		character.joints.elbowR.add_child(blade); blade.position.y=-.70
 func hear(origin: Vector3) -> void:
-	if species=="devil": alerted=true
+	if species=="devil" and not alerted: return
 	memory=origin; memory_left=30
 func _physics_process(delta: float) -> void:
 	if dead or game.coop.client() or not game.is_playing(): return
@@ -66,6 +66,7 @@ func _physics_process(delta: float) -> void:
 	if position.distance_to(target.position)<2.2 and cooldown<=0 and visible_to(target.position) and not game.world.is_safe_position(target.position):
 		strike(target,30 if species=="angel" else 45); cooldown=1.6
 func damage(amount: float,reward_hunter: bool=false) -> void:
+	if dead or game.coop.client(): return
 	var was_dead:=dead
 	if amount>0 and reward_hunter: alerted=true; marked_peer=game.coop.shooter
 	super.damage(amount,reward_hunter)

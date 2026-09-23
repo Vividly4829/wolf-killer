@@ -29,11 +29,17 @@ func run() -> void:
 	check(not hit.is_empty() and hit.collider.get_meta("wolf",null)==bird,"lying goose collider follows its visible body")
 	check(center.y>fixture.y,"fallen body stays above ground")
 	var devil=game.supernatural.spawn("devil",fixture+Vector3(4,0,0)); devil.set_physics_process(false)
+	devil.hear(game.player.position)
+	check(not devil.alerted,"nearby gunfire does not provoke peaceful devil")
+	devil.damage(1,false)
+	check(not devil.alerted,"non-player damage does not provoke devil against hunters")
+	devil.health=devil.max_health
 	var human=preload("res://scripts/human_xray.gd")
 	var brain: Vector3=human.ORGANS[0].center
 	for organ in human.ORGANS:
 		if organ.id=="brain": brain=organ.center
 	var result: Dictionary=devil.receive_ballistic_hit(20,devil.to_global(brain),Vector3.RIGHT,"body",1,1,.3)
+	check(devil.alerted,"player hit provokes devil retaliation")
 	check(is_equal_approx(devil.health,550) and not devil.dead,"1000 HP devil survives 450 brain hit")
 	devil.alerted=false; game.player.position=devil.position+Vector3(0,0,1)
 	await physics_frame; await physics_frame
