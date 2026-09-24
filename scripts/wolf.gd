@@ -774,23 +774,8 @@ func _tick_hunting(delta: float) -> void:
 	var pace: float = speed * 0.6
 	if not goal.is_finite() or awareness <= 0.12:
 		behavior = "patrol"
-		if not _patrol_origin.is_finite():
-			_patrol_origin = position
-		_patrol_left -= delta
-		if _patrol_left <= 0.0 or not _patrol_goal.is_finite():
-			_patrol_left = rng.randf_range(3.0, 5.5)
-			_patrol_goal = position
-			for attempt: int in range(10):
-				var angle: float = rng.randf() * TAU
-				var candidate: Vector3 = _patrol_origin + Vector3(cos(angle), 0.0, sin(angle)) * rng.randf_range(1.0, 4.0)
-				var cell: int = int(nav.call("nearest", candidate.x, candidate.z, 1.0))
-				if cell >= 0:
-					candidate = nav.call("point", cell)
-					if nav.call("line_clear", position.x, position.z, candidate.x, candidate.z):
-						_patrol_goal = candidate
-						break
-		goal = _patrol_goal
-		pace = speed * 0.38
+		goal = _roaming_goal(delta)
+		pace = clampf(speed * .48, 1.0, 2.0) if werewolf else speed * .55
 	else:
 		behavior = "investigate" if detection_state == "investigating" else "search"
 	var direction: Vector3 = goal - position
@@ -798,8 +783,6 @@ func _tick_hunting(delta: float) -> void:
 	if direction.length_squared() < 0.7:
 		direction = Vector3.ZERO
 		rotation.y += delta * 0.48
-	elif behavior == "patrol":
-		direction = direction.normalized()
 	else:
 		direction = _toward_goal(goal)
 	_velocity = _velocity.move_toward(direction * pace * injury_speed_scale, delta * 4.0)
@@ -933,6 +916,8 @@ func _bite_navigation() -> RefCounted:
 	return nav
 
 func _choose_attack(pack: Array[Node3D]) -> void:
+	if pack.size()>1 and not is_alpha and _commit_wait<10 and position.distance_to(_circle_goal(last_known_position,pack))>3:
+		_enter_state("circle",1.2); return
 	# One wolf briefly draws attention while the others press the flanks. Once
 	# its short distraction ends, it also commits; randomness cannot defer forever.
 	var direct_chance: float = (.35 if role == "lead" else (.18 if role == "distract" else .45)) + (_boldness - .5) * .2
@@ -1023,53 +1008,75 @@ func _toward_goal(goal: Vector3) -> Vector3:
 		return Vector3.ZERO
 	if offset.length_squared() < 256.0 and nav.call("line_clear", position.x, position.z, goal.x, goal.z):
 		return offset.normalized()
-	if game.get("campaign") and game.campaign.running:
-		if campaign_search:
-			campaign_search.advance()
-			if campaign_search.finished: campaign_route=campaign_search.result; campaign_search=null
-		if _time>=campaign_route_at and not campaign_search:
-			campaign_route_at=_time+1.2+rng.randf()*.4
-			var cell: int=nav.nearest(goal.x,goal.z,3)
-			if cell>=0:
-				campaign_search=preload("res://scripts/route_search.gd").new()
-				campaign_search.start(nav,position,nav.point(cell))
-		while not campaign_route.is_empty() and Vector2(position.x-campaign_route[0].x,position.z-campaign_route[0].z).length()<.30: campaign_route.remove_at(0)
-		for shortcut in 2:
-			if campaign_route.size()>1 and preload("res://scripts/animal_route.gd").corridor_clear(nav,position,campaign_route[1]): campaign_route.remove_at(0)
-			else: break
-		if not campaign_route.is_empty():
-			var direction:=campaign_route[0]-position; direction.y=0
-			return direction.normalized()
-	var next: Vector3 = nav.call("next_point", position.x, position.z)
-	if not next.is_finite():
-		return Vector3.ZERO
-	next -= position
-	next.y = 0.0
-	return next.normalized()
+	if campaign_search:
+		campaign_search.advance()
+		if campaign_search.finished: campaign_route=campaign_search.result; campaign_search=null
+	if _time>=campaign_route_at and not campaign_search:
+		campaign_route_at=_time+1.2+rng.randf()*.4
+		var cell: int=nav.nearest(goal.x,goal.z,3)
+		if cell>=0:
+			campaign_search=preload("res://scripts/route_search.gd").new()
+			campaign_search.start(nav,position,nav.point(cell))
+	while not campaign_route.is_empty() and Vector2(position.x-campaign_route[0].x,position.z-campaign_route[0].z).length()<.30: campaign_route.remove_at(0)
+	for shortcut in 2:
+		if campaign_route.size()>1 and preload("res://scripts/animal_route.gd").corridor_clear(nav,position,campaign_route[1]): campaign_route.remove_at(0)
+		else: break
+	if not campaign_route.is_empty():
+		var direction:=campaign_route[0]-position; direction.y=0
+		return direction.normalized()
+	# Wait for this route, never follow the unrelated global pursuit field.
+	return Vector3.ZERO
 
-func _circle_goal(center: Vector3, _pack_members_unused: Array[Node3D]) -> Vector3:
-	if _orbit_timer > 0.0 and _orbit_goal.is_finite():
-		return _orbit_goal
-	_orbit_timer = rng.randf_range(0.35, 0.6)
-	var radius: float = _circle_radius + (1.2 if _player_is_safe() else 0.0)
-	var forward: Vector3 = _target_facing if _target_facing.length_squared() > 0.1 else Vector3.FORWARD
-	var leader := _pack_leader()
-	if leader and leader != self and leader.alerted and leader.position.distance_to(position) < 12.0:
-		var leading: Vector3 = center - leader.position
-		leading.y = 0.0
-		if leading.length_squared() > .5: forward = leading.normalized()
-	var right := Vector3(-forward.z, 0.0, forward.x)
-	# Persistent sides and local repositioning replace the synchronized orbit.
-	# Losing a packmate never rotates all remaining wolves into new numbered slots.
-	var band: float = float(pack_slot / 2) * 0.7
-	var lateral: float = float(flank_side) * (radius + band * 0.3)
-	var depth: float = _flank_depth - band
-	if role in ["distract", "lead"]:
-		lateral *= 0.45
-		depth += radius * 0.65
-	var goal: Vector3 = center + right * lateral + forward * depth
-	var nearest: int = int(nav.call("nearest", goal.x, goal.z, 2.0))
-	_orbit_goal = nav.call("point", nearest) if nearest >= 0 else center
+func _roaming_goal(delta: float) -> Vector3:
+	_patrol_left -= delta
+	if werewolf:
+		# Search broad areas around the nearest hunter, without bypassing perception
+		# or the close-range warning before an attack.
+		if _patrol_left <= 0 or not _patrol_goal.is_finite() or position.distance_to(_patrol_goal)<2:
+			_patrol_left = rng.randf_range(12,20)
+			var hunter: Node3D = game.coop.nearest_hunter(position) if is_instance_valid(game.get("coop")) and game.coop.active else game.player
+			var center: Vector3 = hunter.position if is_instance_valid(hunter) else position
+			if game.world.is_safe_position(center): center=game.world.exterior_rally_point
+			_patrol_goal = _find_patrol_point(center, 8, 20)
+			if _patrol_goal.distance_to(position)<2: _patrol_goal=_find_patrol_point(position,15,40)
+		return _patrol_goal
+	var leader: Node3D = _pack_leader()
+	if not is_instance_valid(leader): leader=self
+	var destination: Vector3 = _pack.get("tour_goal",Vector3.INF)
+	var expired: bool = float(_pack.get("tour_until",0)) <= float(_pack.clock)
+	if not destination.is_finite() or (leader==self and (expired or position.distance_to(destination)<3)):
+		destination = _find_patrol_point(leader.position, 18, 48)
+		_pack["tour_goal"]=destination
+		_pack["tour_until"]=float(_pack.clock)+rng.randf_range(35,55)
+	# Loose formation, not a pile of animals on the same navigation cell.
+	var angle: float = float(pack_slot)*2.399963
+	var offset: Vector3 = Vector3(cos(angle),0,sin(angle)) * (0 if leader==self else 2.5+pack_slot*.3)
+	var cell: int = nav.nearest(destination.x+offset.x,destination.z+offset.z,3)
+	return nav.point(cell) if cell>=0 else destination
+
+func _find_patrol_point(center: Vector3, near: float, far: float) -> Vector3:
+	for attempt in 24:
+		var angle := rng.randf()*TAU
+		var candidate := center+Vector3(cos(angle),0,sin(angle))*rng.randf_range(near,far)
+		var cell: int = nav.nearest(candidate.x,candidate.z,4)
+		if cell>=0 and nav.reachable.has(cell): return nav.point(cell)
+	return position
+
+func _circle_goal(center: Vector3, _members: Array[Node3D]) -> Vector3:
+	if _orbit_timer > 0.0 and _orbit_goal.is_finite(): return _orbit_goal
+	_orbit_timer = rng.randf_range(.35,.6)
+	if not _pack.has("encircle_bearing"):
+		_pack["encircle_bearing"]=atan2(position.z-center.z,position.x-center.x)
+	# Golden-angle slots remain stable when another pack member dies, and cover
+	# front, rear and both flanks even when reinforcements join later.
+	var angle: float = float(_pack.encircle_bearing)+float(pack_slot)*2.399963
+	var radius: float = _circle_radius+2.2+(1.2 if _player_is_safe() else 0)
+	for adjustment in [0.0,.3,-.3,.6,-.6]:
+		var goal := center+Vector3(cos(angle+adjustment),0,sin(angle+adjustment))*radius
+		var cell: int = nav.nearest(goal.x,goal.z,2)
+		if cell>=0 and nav.reachable.has(cell):
+			_orbit_goal=nav.point(cell); return _orbit_goal
+	_orbit_goal=position
 	return _orbit_goal
 
 func _can_bite(target: Vector3) -> bool:
@@ -1119,6 +1126,7 @@ func _physics_process(delta: float) -> void:
 			return
 	if reaction and reaction.down>0: return
 	if _hunt_raider(delta,player): return
+	_pack.clock = maxf(float(_pack.get("clock", 0.0)), _time + _clock_offset)
 	if game.get("free_play"):
 		alerted = false
 		awareness = 0
@@ -1182,7 +1190,7 @@ func _physics_process(delta: float) -> void:
 	var pace: float = 0.0
 	match behavior:
 		"approach":
-			direction = _toward_goal(center)
+			direction = _toward_goal(_circle_goal(center, pack) if pack.size()>1 else center)
 			pace = speed * 1.35
 		"circle":
 			direction = _toward_goal(_circle_goal(center, pack))
@@ -1300,14 +1308,22 @@ func _animate(velocity: float, attacking: bool) -> void:
 		model.rotation.z = (0.12 if severed_legs[0].ends_with("left") else -0.12) + sin(phase) * 0.035 * activity
 
 func _hunt_wildlife(delta: float) -> bool:
+	if werewolf: return false
 	prey_timer -= delta
+	var shared: WeakRef=_pack.get("prey")
+	if shared and float(_pack.get("prey_until",0))>float(_pack.clock):
+		var animal: Node3D=shared.get_ref()
+		if is_instance_valid(animal) and not animal.dead and position.distance_to(animal.position)<28: prey=animal
+	elif is_instance_valid(prey):
+		prey=null; prey_timer=rng.randf_range(8,16)
 	if not is_instance_valid(prey) or prey.dead or position.distance_to(prey.position)>25:
 		prey = null
 		if prey_timer>0: return false
 		prey_timer = rng.randf_range(4,10)
 		for animal in game.nodes_in_group("wildlife"):
-			if not animal.dead and position.distance_to(animal.position)<18 and rng.randf()<.55:
+			if not animal.dead and not animal.aquatic and position.distance_to(animal.position)<18 and rng.randf()<.35 and nav.line_clear(position.x,position.z,animal.position.x,animal.position.z):
 				prey = animal
+				_pack["prey"]=weakref(animal); _pack["prey_until"]=float(_pack.clock)+14
 				break
 	if not is_instance_valid(prey): return false
 	var direction: Vector3 = prey.position-position
@@ -1318,7 +1334,8 @@ func _hunt_wildlife(delta: float) -> bool:
 			_attack_cooldown = .9
 			_attack_pose = .8
 	else:
-		direction = direction.normalized()
+		direction = _toward_goal(prey.position)
+		if prey.has_method("frighten"): prey.frighten(position,8.0)
 		var movement: Vector3 = direction*speed*1.7*injury_speed_scale*delta
 		position = _move_scaled(movement.x,movement.z)
 		rotation.y = lerp_angle(rotation.y,atan2(direction.x,direction.z),delta*5)

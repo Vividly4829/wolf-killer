@@ -1,6 +1,7 @@
 shader_type spatial;
 render_mode cull_disabled, specular_disabled;
 uniform bool terrain = false;
+uniform bool photo_architecture = false;
 uniform int season = 2;
 uniform vec2 cabin_outline[10];
 varying vec3 world_position;
@@ -67,9 +68,10 @@ void fragment() {
 		result = mix(vec3(.075, .125, .16), vec3(.32, .39, .42), clamp(value * 1.8, 0.0, 1.0)) * grain;
 	}
 	if (sheltered && (timber || red_paint)) result = vec3(.36, .23, .13) * grain;
+	if (photo_architecture && COLOR.a < .9) result = base * grain;
 	// Cool shadow pigment retains exposed autumn earth and warm cabin timber.
 	if (!sheltered) result = mix(result, vec3(.065, .15, .17) * (.75 + dot(result, vec3(.3, .5, .2))), .28);
-	if (grass && season < 2) result = mix(vec3(.12,.24,.06),vec3(.32,.42,.12),wash);
+	if (grass && season < 2 && !(photo_architecture && COLOR.a < .9)) result = mix(vec3(.12,.24,.06),vec3(.32,.42,.12),wash);
 	if (season == 3 && !sheltered && n.y > .3) result = mix(result,vec3(.78,.84,.87),smoothstep(.3,.8,n.y)*.92);
 	ALBEDO = result;
 	ROUGHNESS = 1.0;

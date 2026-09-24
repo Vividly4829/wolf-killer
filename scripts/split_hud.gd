@@ -47,6 +47,9 @@ func _draw() -> void:
 		for vertex in coast: outline.append(Vector2(1105+(vertex[0]+230)*.35,12+(-vertex[1]+210)*.24))
 		if outline.size()>2: draw_colored_polygon(outline,Color("364647"))
 	for station in game.fast_travel.points: draw_circle(Vector2(1105+(station.x+230)*.35,12+(station.z+210)*.24),3,Color("9de4d1"))
+	for boat in game.boats.fleet:
+		var p:=Vector2(1105+(boat.p.x+230)*.35,12+(boat.p.z+210)*.24)
+		draw_colored_polygon(PackedVector2Array([p+Vector2(0,-4),p+Vector2(3,2),p+Vector2(-3,2)]),Color("73ccff"))
 	for animal in game.radar_animals():
 		var marker:=Vector2(1105+(animal.position.x+230)*.35,12+(animal.position.z+210)*.24).clamp(Vector2(1104,12),Vector2(1266,110))
 		if game.rituals.all_radar() and game.radar_dangerous(animal): preload("res://scripts/radar_icons.gd").skull(self,marker,game.radar_color(animal))

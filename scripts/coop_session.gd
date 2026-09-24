@@ -112,6 +112,7 @@ func join_session(address: String) -> void:
 	multiplayer.multiplayer_peer = peer
 	active = true
 func leave() -> void:
+	if game.boats: game.boats.release_all()
 	if internet: internet.stop()
 	multiplayer.auth_callback=Callable()
 	multiplayer.refuse_new_connections=false
@@ -333,7 +334,7 @@ func _process(delta: float) -> void:
 	for bolt in game.nodes_in_group("player_bolts")+game.nodes_in_group("enemy_bolts"):
 		projectiles.append({"id":bolt.get_instance_id(),"p":bolt.position,"v":bolt.velocity,"type":bolt.spec.id,"fuse":maxf(0,float(bolt.spec.get("fuse",0))-float(bolt.get("age"))) if bolt.spec.get("explosive",false) and not bolt.spec.get("launcher",false) else -1.0})
 	for id in connected_peers():
-		send_to(id,"state",[hunters,animals,game.level,game.mode,game.intermission,game.pending_spawns,game.wave_total,projectiles,game.world.houses.drops,game.wave_kills,generation,game.campaign.snapshot()])
+		send_to(id,"state",[hunters,animals,game.level,game.mode,game.intermission,game.pending_spawns,game.wave_total,projectiles,game.world.houses.drops,game.wave_kills,generation,game.campaign.snapshot(),game.boats.snapshot()])
 	if game.level!=previous_wave and game.mode=="resting":
 		generation += 1
 		for id in avatars:
@@ -351,8 +352,10 @@ func pose(p: Vector3,yaw: float,crouch: bool,noise: float,hp: float,weapon: int,
 	if not avatars.has(id): return
 	var avatar = avatars[id]
 	var offset: Vector3 = p-avatar.position
+	var aboard: bool = game.boats.occupied(id)>=0
+	if aboard: p=avatar.position; offset=Vector3.ZERO
 	if offset.length()>3.0: send_to(id,"correct_position",[avatar.position]); return
-	avatar.position = game.world.nav.move_position(avatar.position,offset.x,offset.z)
+	if not aboard: avatar.position = game.world.nav.move_position(avatar.position,offset.x,offset.z)
 	avatar.rotation.y = yaw
 	avatar.equip(weapon)
 	avatar.set_meta("sprinting",sprinting)
@@ -368,8 +371,9 @@ func pose(p: Vector3,yaw: float,crouch: bool,noise: float,hp: float,weapon: int,
 @rpc("authority","reliable")
 func correct_position(p: Vector3) -> void: game.player.position = p
 @rpc("authority","call_remote","reliable",1)
-func state(hunters: Array,animals: Array,wave: int,mode: String,waiting: bool,pending: int,total: int,projectiles: Array,loot: Array,hunted: int,epoch: int,mission: Dictionary = {}) -> void:
+func state(hunters: Array,animals: Array,wave: int,mode: String,waiting: bool,pending: int,total: int,projectiles: Array,loot: Array,hunted: int,epoch: int,mission: Dictionary = {},boats: Array = []) -> void:
 	if not client() or epoch!=generation: return
+	game.boats.apply_snapshot(boats)
 	game.campaign.apply_snapshot(mission)
 	if mode=="victory" and game.mode!="victory": game.set_mode("victory")
 	game.wave_kills = hunted
@@ -856,3 +860,15 @@ func soul_changed(cost: int) -> void:
 	game.health=minf(game.health,game.maximum_health())
 @rpc("authority","reliable")
 func supernatural_notice(message: String) -> void: game.show_notice(message,8)
+
+@rpc("any_peer","reliable")
+func boat_interact() -> void:
+	if server(): game.boats.request(sender_id())
+@rpc("any_peer","unreliable_ordered")
+func boat_control(axis: Vector2,brake: bool) -> void:
+	if server(): game.boats.control(sender_id(),axis,brake)
+@rpc("authority","reliable")
+func boat_state(data: Array) -> void: game.boats.apply_snapshot(data)
+@rpc("authority","reliable")
+func boat_exit(point: Vector3) -> void:
+	game.player.reset_at(point)

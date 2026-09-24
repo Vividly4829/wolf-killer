@@ -21,6 +21,7 @@ var supernatural: Node
 var rituals: Node
 var mushrooms: Node3D
 var combat_fx: Node3D
+var boats: Node3D
 var world: Node3D
 var player: Node3D
 var hud_detail_left := 0.0
@@ -126,6 +127,7 @@ func _sync_weapon_visual() -> void:
 	if current_weapon in [30,31,32]: player.weapon.set_dual_ammo(current_ammo())
 
 func _replenish_ammunition() -> void:
+	if boats: boats.release_all()
 	if affliction: affliction.psychedelic = false
 	if mushrooms: mushrooms.regrow(level)
 	ammo = WeaponCatalog.full_magazines()
@@ -173,6 +175,7 @@ func _ready() -> void:
 	coop = preload("res://scripts/coop_session.gd").new()
 	coop.game = self
 	add_child(coop)
+	boats=preload("res://scripts/coastal_boats.gd").new(); boats.game=self; add_child(boats)
 	campaign = preload("res://scripts/campaign_director.gd").new()
 	campaign.game = self
 	add_child(campaign)
@@ -1077,6 +1080,9 @@ func use_bandage() -> void:
 		show_notice("Applying a bandage…", 2.4)
 
 func interaction_prompt() -> String:
+	if boats and health>0:
+		var boating: String=boats.prompt()
+		if not boating.is_empty(): return boating
 	if health<=0 or is_struggling(): return ""
 	var key := "Y" if controller_device>=0 else "E"
 	if fast_travel.nearby(player.position)>=0: return "[ %s ] FAST TRAVEL"%key
@@ -1112,6 +1118,7 @@ func drink_coffee() -> void:
 	else: coop.serve_coffee(1,cabin)
 
 func interact_shop() -> void:
+	if boats and is_playing() and health>0 and not is_struggling() and not rituals.channeling() and boats.interact(): return
 	if is_playing() and health>0 and not is_struggling() and supernatural.nearby():
 		if coop.client(): coop.send_to(1,"devil_deal",[])
 		else: supernatural.deal(1)

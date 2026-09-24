@@ -63,6 +63,7 @@ func _ready() -> void:
 	_prepare_model(island, terrain_material, building_material)
 	_create_foliage()
 	_create_surroundings()
+	var photo_details=preload("res://scripts/coastal_details.gd").new(); photo_details.world=self; add_child(photo_details)
 	houses = preload("res://scripts/loot_houses.gd").new()
 	houses.world = self
 	add_child(houses)
@@ -132,10 +133,13 @@ func _is_surroundings_service(node: Node) -> bool:
 	return node is CollisionObject3D or node is CollisionShape3D or node is CollisionPolygon3D or node is NavigationRegion3D or node is NavigationLink3D or node is NavigationObstacle3D or node is NavigationAgent3D or node is Camera3D or node is Light3D or node is WorldEnvironment or node is AnimationPlayer or node is AnimationTree
 
 func _prepare_surroundings(node: Node, terrain: ShaderMaterial, vegetation: ShaderMaterial) -> void:
+	terrain.set_shader_parameter("photo_architecture",true)
+	vegetation.set_shader_parameter("photo_architecture",true)
 	if node is GeometryInstance3D:
 		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	if node is MeshInstance3D:
 		var label := str(node.name).to_lower()
+		node.mesh=preload("res://scripts/coastal_details.gd").refine_mesh(node.mesh,label,exploration_data.houses)
 		var is_land := label.begins_with("context_ground") or label.begins_with("context_rock")
 		node.material_override = terrain if is_land else vegetation
 	for child in node.get_children():

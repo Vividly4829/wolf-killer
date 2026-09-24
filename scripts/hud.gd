@@ -788,6 +788,9 @@ func _draw_map() -> void:
 		var shop: Vector2 = _map_point(point)
 		draw_rect(Rect2(shop - Vector2(3, 3), Vector2(6, 6)), GOLD)
 	for station in game.fast_travel.points: draw_circle(_map_point(station),3,Color("9de4d1"))
+	for boat in game.boats.fleet:
+		var p: Vector2=_map_point(boat.p)
+		draw_colored_polygon(PackedVector2Array([p+Vector2(0,-5),p+Vector2(3,2),p+Vector2(-3,2)]),Color("73ccff"))
 	for animal in game.radar_animals():
 		var point: Vector2 = _map_point(animal.position).clamp(Vector2(1068,31),Vector2(1242,197))
 		if game.rituals.all_radar() and game.radar_dangerous(animal): preload("res://scripts/radar_icons.gd").skull(self,point,game.radar_color(animal))

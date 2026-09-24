@@ -17,13 +17,26 @@ func run() -> void:
 		check(await wait_for(func(): return not game.coop.internet.invite.is_empty(),175),"public TLS invite ready")
 		if failed: await finish(); return
 		var file:=FileAccess.open("res://qa/test-invite.txt",FileAccess.WRITE); file.store_string(game.coop.internet.invite); file.close()
-		check(await wait_for(func(): return game.coop.avatars.size()==3,80),"host plus three internet clients joined")
+		check(await wait_for(func(): return game.coop.avatars.size()==3 and game.coop.avatars.values().all(func(a): return a.has_meta("start_money_applied")),80),"host plus three internet clients joined")
 		if not failed:
+			game.set_process(false); game.campaign.set_process(false)
 			var actor=game.supernatural.spawn("angel",Vector3(140,80,140)); actor.set_physics_process(false)
 			actor.health=321
 			for id in game.coop.avatars:
 				game.rituals.give(id,"wolf"); game.rituals.give(id,"wolf")
-			await create_timer(8).timeout
+			var boat: Dictionary=game.boats.fleet[0]
+			game.player.position=boat.shore
+			for id in game.coop.avatars:
+				game.coop.avatars[id].position=boat.shore
+				game.coop.send_to(id,"correct_position",[boat.shore])
+			check(game.boats.request(1),"internet host boards boat")
+			check(await wait_for(func(): return boat.riders.size()==4,40),"four internet players share the boat")
+			boat.p=Vector3(180,-.05,130); game.boats.place_riders()
+			for step in 100:
+				game.boats.control(1,Vector2(0,-1),false)
+				await create_timer(.05).timeout
+			check(boat.p.z<120,"internet host drives boat across open sea")
+			await create_timer(3).timeout
 			actor.damage(1000,true)
 			await create_timer(8).timeout
 	else:
@@ -33,6 +46,11 @@ func run() -> void:
 		if not failed:
 			check(await wait_for(func(): return game.rituals.count("wolf")==2),"ritual stacks replicated")
 			check(await wait_for(func(): return game.coop.replicas.values().any(func(a): return a.get("species")=="angel" and is_equal_approx(a.health,321))),"angel and health replicate")
+			check(await wait_for(func(): return game.boats.fleet[0].riders.has(1) and game.player.position.distance_to(game.boats.fleet[0].p)<4.3),"internet boat and shore spawn replicate")
+			game.boats.interact()
+			check(await wait_for(func(): return game.boats.fleet[0].riders.size()==4),"all internet passengers replicate")
+			check(await wait_for(func(): return game.boats.fleet[0].p.x>170 and game.boats.fleet[0].p.z<120),"internet boat movement replicates")
+			check(game.player.position.distance_to(game.boats.fleet[0].p)<2,"internet passenger stays aboard")
 			check(await wait_for(func(): return game.coop.replicas.values().any(func(a): return a.get("species")=="angel" and a.dead)),"angel death replicated")
 			await create_timer(2).timeout
 	await finish()
