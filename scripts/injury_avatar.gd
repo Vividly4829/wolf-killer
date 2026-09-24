@@ -7,7 +7,10 @@ const HURT:=Color("ff735d")
 func _ready() -> void:
 	size=Vector2(244,158); mouse_filter=Control.MOUSE_FILTER_IGNORE
 func _process(_delta: float) -> void:
-	visible=game.mode=="playing"; queue_redraw()
+	visible=game.mode=="playing"
+	var power_count: int=game.rituals.status_entries().size()
+	size=Vector2(244 if power_count==0 else (500 if power_count<=7 else 744),158)
+	queue_redraw()
 func region(value: float) -> Color: return HURT if value>0 else OK
 func line(a: Vector2,b: Vector2,color: Color,width: float=9) -> void:
 	draw_line(a,b,color,width,true); draw_circle(a,width*.5,color); draw_circle(b,width*.5,color)
@@ -49,3 +52,13 @@ func _draw() -> void:
 		draw_colored_polygon(PackedVector2Array([Vector2(51,70),Vector2(44,84),Vector2(58,84)]),Color("801f2e"))
 	var labels:=status_lines()
 	for i in labels.size(): draw_string(font,Vector2(92,42+i*18),labels[i],HORIZONTAL_ALIGNMENT_LEFT,147,11,OK if labels[i]=="HEALTHY" else HURT)
+
+	var powers: Array[Dictionary]=game.rituals.status_entries()
+	if not powers.is_empty():
+		draw_line(Vector2(244,10),Vector2(244,148),Color("63705a"),1)
+		draw_string(font,Vector2(256,18),"POWERS / PERMANENT / TOTAL BONUS",HORIZONTAL_ALIGNMENT_LEFT,size.x-268,10,OK)
+		for i in powers.size():
+			var power: Dictionary=powers[i]
+			var origin:=Vector2(256+floori(float(i)/7.0)*244,30+(i%7)*19)
+			draw_string(font,origin,"%s ×%d"%[power.name,power.count],HORIZONTAL_ALIGNMENT_LEFT,236,10,Color("e9bb7f"))
+			draw_string(font,origin+Vector2(0,9),power.description,HORIZONTAL_ALIGNMENT_LEFT,236,9,Color("c5d0ca"))

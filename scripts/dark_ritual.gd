@@ -123,19 +123,14 @@ func ended(success: bool) -> void:
 func grant(species: String,expiry: int) -> void:
 	if not BOONS.has(species): return
 	boons[species]=int(boons.get(species,0))+1; channel_left=0; channel_type=""
-	game.show_notice("%s / %s / PERMANENT"%[BOONS[species].name,BOONS[species].description],7)
+	game.show_notice("Power gained: %s (see player status)"%BOONS[species].name,3)
 func _process(delta: float) -> void:
 	channel_left=maxf(0,channel_left-delta)
 	veil.visible=channeling() and game.mode=="playing"
 	veil.color=Color(.24,0,.015,.16+.06*sin(channel_left*9))
-	ui.visible=game.mode=="playing"
+	ui.visible=game.mode=="playing" and channeling()
 	ui.position=Vector2(220,280) if is_instance_valid(game.split_session) else Vector2(345,650)
-	var rows: PackedStringArray=[]
-	if channeling(): rows.append("DARK SACRIFICE  %d%%"%roundi((1-channel_left/DURATION)*100))
-	for species in boons:
-		if has_boon(species): rows.append("%s ×%d / PERMANENT"%[BOONS[species].name,count(species)])
-	if game.supernatural.soul_cost>0: rows.append("SOUL SOLD ×%d / MAX HP ×%.3f"%[game.supernatural.soul_cost,pow(.5,game.supernatural.soul_cost)])
-	ui.text=" · ".join(rows); ui.size.x=590; ui.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
+	ui.text="DARK SACRIFICE  %d%%"%roundi((1-channel_left/DURATION)*100)
 	game.health=minf(game.health,game.maximum_health())
 	if game.coop.client(): return
 	for peer in tasks.keys():
@@ -187,3 +182,31 @@ func visual(point: Vector3,peer: int) -> void:
 func ribbon(parent: Node3D,a: Vector3,b: Vector3,material: Material,width: float) -> void:
 	var line:=MeshInstance3D.new(); var mesh:=CylinderMesh.new(); mesh.top_radius=width; mesh.bottom_radius=width; mesh.height=a.distance_to(b); mesh.radial_segments=5
 	line.mesh=mesh; line.material_override=material; line.position=(a+b)*.5; line.quaternion=Quaternion(Vector3.UP,(b-a).normalized()); parent.add_child(line)
+
+## Descriptions show the accumulated bonus, including multiplicative reductions.
+func status_entries() -> Array[Dictionary]:
+	var entries: Array[Dictionary]=[]
+	for species in BOONS:
+		var stacks:=count(species)
+		if stacks<=0: continue
+		var effect: String=BOONS[species].effect
+		var bonus:=roundi(absf(factor(effect)-1.0)*100.0)
+		var description: String={
+			"flat_damage":"+%d damage per hit"%roundi(flat_damage()),
+			"stamina_regen":"+%d%% stamina recovery"%bonus,
+			"stamina":"%d%% less sprint stamina use"%bonus,
+			"noise":"%d%% quieter movement"%bonus,
+			"radar":"Threat markers; +%d m radar"%(75*stacks),
+			"sneak":"+%d%% crouched movement speed"%bonus,
+			"damage":"+%d%% weapon damage"%bonus,
+			"health":"+%d%% maximum health"%bonus,
+			"resistance":"%d%% less incoming damage"%bonus,
+			"reload":"%d%% shorter reloads"%bonus,
+			"struggle":"+%d%% struggle escape speed"%bonus,
+			"accuracy":"%d%% less weapon spread"%bonus
+		}[effect]
+		entries.append({"name":BOONS[species].name,"count":stacks,"description":description})
+	if game.supernatural.soul_cost>0:
+		entries.append({"name":"SOUL SOLD","count":game.supernatural.soul_cost,
+			"description":"Max HP ×%.3f (soul bargain)"%pow(.5,game.supernatural.soul_cost)})
+	return entries
