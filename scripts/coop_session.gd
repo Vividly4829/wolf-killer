@@ -13,6 +13,7 @@ var round_earnings: Dictionary = {1: 0}
 var earning_slots: Dictionary = {1: 1}
 var local_spawn := Vector3.ZERO
 var local_yaw := 0.0
+var revive_revision := 0
 var generation := 0
 var active := false
 var avatars: Dictionary = {}
@@ -123,6 +124,7 @@ func leave() -> void:
 	awaiting_spawn=false
 	slots.clear()
 	generation = 0
+	revive_revision = 0
 	if multiplayer.multiplayer_peer: multiplayer.multiplayer_peer.close()
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	for avatar in avatars.values(): avatar.queue_free()
@@ -313,7 +315,7 @@ func _process(delta: float) -> void:
 	last_snapshot = clock
 	if client():
 		if not awaiting_spawn and (local_peer_id>0 or multiplayer.multiplayer_peer.get_connection_status()==MultiplayerPeer.CONNECTION_CONNECTED):
-			send_to(1,"pose",[game.player.position,game.player.yaw,game.player.is_crouching,game.player.get_noise_level(),game.health,game.current_weapon,game.player.is_sprinting,generation])
+			send_to(1,"pose",[game.player.position,game.player.yaw,game.player.is_crouching,game.player.get_noise_level(),game.health,game.current_weapon,game.player.is_sprinting,generation,revive_revision])
 		return
 	check_team_wipe()
 	var hunters: Array = [{"id":1,"p":game.player.position,"yaw":game.player.yaw,"health":game.health,"weapon":game.current_weapon,"earned":round_earnings.get(1,0),"slot":1,"beast":game.affliction.transformed()}]
@@ -345,12 +347,13 @@ func _process(delta: float) -> void:
 		for id in avatars: wake_remote(id,true)
 		previous_wave = game.level
 @rpc("any_peer","unreliable_ordered")
-func pose(p: Vector3,yaw: float,crouch: bool,noise: float,hp: float,weapon: int,sprinting: bool = false,epoch: int = 0) -> void:
+func pose(p: Vector3,yaw: float,crouch: bool,noise: float,hp: float,weapon: int,sprinting: bool = false,epoch: int = 0,life: int = 0) -> void:
 	if epoch!=generation: return
 	if not server() or not p.is_finite() or not is_finite(yaw) or not is_finite(hp): return
 	var id := sender_id()
 	if not avatars.has(id): return
 	var avatar = avatars[id]
+	if life!=int(avatar.get_meta("revive_revision",0)): return
 	var offset: Vector3 = p-avatar.position
 	var aboard: bool = game.boats.occupied(id)>=0
 	if aboard: p=avatar.position; offset=Vector3.ZERO
@@ -365,7 +368,7 @@ func pose(p: Vector3,yaw: float,crouch: bool,noise: float,hp: float,weapon: int,
 	avatar._actual_speed = Vector2(offset.x,offset.z).length()/.08
 	avatar.health = minf(avatar.health,clampf(hp,0,avatar_maximum(avatar)))
 	if avatar.health<=0: avatar.mauling = 0
-	avatar.visible = avatar.health>0
+	avatar.visible = true
 	avatar.area.collision_layer = 2 if avatar.health>0 else 0
 	check_team_wipe()
 @rpc("authority","reliable")
@@ -399,7 +402,7 @@ func state(hunters: Array,animals: Array,wave: int,mode: String,waiting: bool,pe
 		avatars[id].position = hunter.p
 		avatars[id].rotation.y = hunter.yaw
 		avatars[id].health = hunter.health
-		avatars[id].visible = hunter.health>0
+		avatars[id].visible = true
 		avatars[id].area.collision_layer = 2 if hunter.health>0 else 0
 		avatars[id].equip(int(hunter.weapon))
 		avatars[id].set_beast(hunter.get("beast",false))
@@ -673,13 +676,14 @@ func any_living() -> bool:
 	return false
 func local_down() -> void:
 	if is_instance_valid(local_area): local_area.collision_layer = 0
-	if client(): send_to(1,"report_down",[generation])
+	if client(): send_to(1,"report_down",[generation,revive_revision])
 	else: check_team_wipe()
 @rpc("any_peer","reliable")
-func report_down(epoch: int) -> void:
+func report_down(epoch: int,life: int=0) -> void:
 	if not server() or epoch!=generation: return
 	var id := sender_id()
 	if avatars.has(id):
+		if life!=int(avatars[id].get_meta("revive_revision",0)): return
 		avatars[id].health = 0
 		avatars[id].mauling = 0
 	check_team_wipe()
@@ -877,3 +881,51 @@ func boat_state(data: Array) -> void: game.boats.apply_snapshot(data)
 @rpc("authority","reliable")
 func boat_exit(point: Vector3) -> void:
 	game.player.reset_at(point)
+
+## A revive is validated by the host; old down/pose packets cannot undo it.
+func revive_target() -> int:
+	if not active or not game.is_playing() or game.health<=0 or game.is_struggling() or game.rituals.channeling(): return 0
+	var best:=2.5
+	var found:=0
+	for id in avatars:
+		var victim=avatars[id]
+		var distance: float=game.player.position.distance_to(victim.position)
+		if victim.health<=0 and distance<=best and revive_visible(game.player,victim): best=distance; found=id
+	return found
+func revive_visible(rescuer: Node3D,victim: Node3D) -> bool:
+	var ray:=PhysicsRayQueryParameters3D.create(rescuer.position+Vector3.UP*.8,victim.position+Vector3.UP*.4,1)
+	return game.get_world_3d().direct_space_state.intersect_ray(ray).is_empty()
+@rpc("any_peer","reliable")
+func request_revive(victim_id: int,epoch: int) -> void:
+	if not server() or epoch!=generation: return
+	revive_teammate(sender_id(),victim_id)
+func revive_teammate(rescuer_id: int,victim_id: int) -> bool:
+	if not active or client() or not game.is_playing() or rescuer_id==victim_id: return false
+	var rescuer: Node3D=game.player if rescuer_id==1 else avatars.get(rescuer_id)
+	var victim: Node3D=game.player if victim_id==1 else avatars.get(victim_id)
+	if not is_instance_valid(rescuer) or not is_instance_valid(victim): return false
+	var rescuer_hp: float=game.health if rescuer_id==1 else rescuer.health
+	var victim_hp: float=game.health if victim_id==1 else victim.health
+	if rescuer_hp<=0 or victim_hp>0 or rescuer.position.distance_to(victim.position)>2.5 or not revive_visible(rescuer,victim): return false
+	if (game.is_struggling() or game.rituals.channeling()) if rescuer_id==1 else (rescuer.mauling!=0 or game.rituals.tasks.has(rescuer_id)): return false
+	if victim_id==1:
+		revived(game.player.position,generation,revive_revision+1)
+	else:
+		release_remote_maul(victim_id)
+		var revision:=int(victim.get_meta("revive_revision",0))+1
+		victim.set_meta("revive_revision",revision)
+		victim.health=10; victim.visible=true; victim.area.collision_layer=2
+		send_to(victim_id,"revived",[victim.position,generation,revision])
+	return true
+@rpc("authority","reliable")
+func revived(point: Vector3,epoch: int,revision: int) -> void:
+	if epoch!=generation or revision<=revive_revision or game.mode not in ["waiting","playing"]: return
+	revive_revision=revision
+	game.end_wolf_struggle(false)
+	game.player.reset_at(point)
+	game.player.stop_bleeding()
+	game.health=10; game.bandage_left=0; game.reload_left=0
+	game.struggle_grace=2.0
+	if is_instance_valid(local_area): local_area.collision_layer=2
+	game.set_mode("playing")
+	game.show_notice("Your teammate revived you / 10 HP",3)

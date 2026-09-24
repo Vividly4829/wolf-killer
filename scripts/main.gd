@@ -1080,6 +1080,7 @@ func use_bandage() -> void:
 		show_notice("Applying a bandage…", 2.4)
 
 func interaction_prompt() -> String:
+	if coop.revive_target()>0: return "[ %s ] REVIVE TEAMMATE / 10 HP"%("Y" if controller_device>=0 else "E")
 	if boats and health>0:
 		var boating: String=boats.prompt()
 		if not boating.is_empty(): return boating
@@ -1118,6 +1119,11 @@ func drink_coffee() -> void:
 	else: coop.serve_coffee(1,cabin)
 
 func interact_shop() -> void:
+	var fallen: int=coop.revive_target()
+	if fallen>0:
+		if coop.client(): coop.send_to(1,"request_revive",[fallen,coop.generation])
+		else: coop.revive_teammate(1,fallen)
+		return
 	if boats and is_playing() and health>0 and not is_struggling() and not rituals.channeling() and boats.interact(): return
 	if is_playing() and health>0 and not is_struggling() and supernatural.nearby():
 		if coop.client(): coop.send_to(1,"devil_deal",[])

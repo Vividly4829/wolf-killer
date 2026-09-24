@@ -1,4 +1,5 @@
 extends Node3D
+var status_label: Label3D
 var peer_id := 1
 var health := 100.0
 var is_crouching := false
@@ -29,7 +30,7 @@ func _ready() -> void:
 	character.coat_color=Color("52675c") if peer_id%2 else Color("876449")
 	add_child(character)
 	area = hitbox(self,peer_id)
-	var label := Label3D.new()
+	var label := Label3D.new(); status_label=label
 	label.text = "HUNTER"
 	label.font_size = 32
 	label.pixel_size = .004
@@ -52,6 +53,9 @@ static func hitbox(parent: Node3D,id: int) -> Area3D:
 	return hit
 
 func _process(delta: float) -> void:
+	status_label.text="DOWN / REVIVE" if health<=0 else "HUNTER"
+	status_label.modulate=Color("ffbb77") if health<=0 else Color.WHITE
+	if is_instance_valid(weapon): weapon.visible=health>0
 	if not previous_position.is_finite(): previous_position=position
 	var moved:=position.distance_to(previous_position)/maxf(delta,.001)
 	rendered_speed=lerpf(rendered_speed,minf(10,moved),1-exp(-delta*8))

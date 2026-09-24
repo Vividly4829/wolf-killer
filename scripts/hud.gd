@@ -246,7 +246,7 @@ func refresh_panel() -> void:
 	elif game.mode == "waiting":
 		_block(overlay,Rect2(320,220,640,260),Color(.03,.04,.06,.85))
 		_label(overlay,"WAITING FOR YOUR TEAM",Vector2(370,250),30)
-		_label(overlay,"A surviving hunter can finish the objective.\nYou will respawn next round in your own building.\nMoney is kept; lost weapons can be replaced.",Vector2(370,310),18,PAPER)
+		_label(overlay,"A teammate can revive you nearby with E / Y (10 HP).\nOr finish the objective to respawn at the cabin next round.\nMoney is kept; lost weapons can be replaced.",Vector2(370,310),18,PAPER)
 		_button(overlay,"LEAVE SESSION",Rect2(460,410,360,45),game.return_to_menu)
 	elif game.mode == "victory":
 		_victory()
