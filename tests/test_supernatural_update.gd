@@ -61,6 +61,6 @@ func run() -> void:
 	check(preload("res://scripts/vital_damage.gd").resolve(["heart"],5000)==900,"heart damage capped at 900")
 	check(game.WeaponCatalog.weapon(0).spread>game.WeaponCatalog.weapon(29).spread*5,"smoothbore musket less precise than Mauser rifle")
 	game.rituals._process(0)
-	check("×2" in game.rituals.ui.text,"stack counts are visible")
+	check(game.rituals.status_entries().any(func(entry): return entry.count>=2),"stack counts are visible in player status")
 	game.queue_free(); await process_frame
 	print("SUPERNATURAL_UPDATE failures=",failures); quit(1 if failures else 0)

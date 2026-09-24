@@ -49,7 +49,7 @@ func deal(peer: int) -> bool:
 			var cost:=int(hunter.get_meta("soul_cost",0))+1
 			hunter.set_meta("soul_cost",cost); hunter.health=minf(hunter.health,game.coop.avatar_maximum(hunter))
 			game.coop.send_to(peer,"soul_changed",[cost])
-		var choices: Array=game.rituals.BOONS.keys(); choices.erase("angel")
+		var choices: Array=game.rituals.BOONS.keys(); choices.erase("angel"); choices.erase("devil")
 		for i in 3: game.rituals.give(peer,choices.pick_random())
 		game.rituals.visual(devil.position,-peer)
 		return true

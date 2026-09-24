@@ -8,7 +8,7 @@ var power:=20.0
 var spec: Dictionary={"id":"enemy_arrow"}
 func _ready() -> void:
 	add_to_group("enemy_bolts")
-	if spec.id=="enemy_musket": return
+	if spec.id in ["enemy_musket","enemy_pepperbox"]: return
 	var field_id: int=["throwing_knife","throwing_axe","hunting_spear"].find(spec.id)
 	if field_id>=0:
 		add_child(preload("res://scripts/weapon_model_builder.gd").new().build(18+field_id).root)
@@ -20,7 +20,7 @@ func _ready() -> void:
 	shaft.material_override=material; add_child(shaft)
 func _physics_process(delta: float) -> void:
 	if not is_instance_valid(attacker) or life>5: queue_free(); return
-	if spec.id=="enemy_musket" and life>.7: finish(); return
+	if spec.id in ["enemy_musket","enemy_pepperbox"] and life>.7: finish(); return
 	if not game.is_playing(): return
 	life+=delta
 	if trail.is_empty(): trail.append(position)
@@ -49,7 +49,7 @@ func _physics_process(delta: float) -> void:
 	look_at(position+velocity,Vector3.UP)
 
 func finish() -> void:
-	if spec.id=="enemy_musket" and trail.size()>1:
+	if spec.id in ["enemy_musket","enemy_pepperbox"] and trail.size()>1:
 		var token:="enemy:%d"%get_instance_id()
 		game.coop.ballistic_effect(trail,token,-1)
 		if game.coop.active: game.coop.send_all("ballistic_effect",[trail,token,-1])

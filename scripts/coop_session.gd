@@ -571,12 +571,17 @@ func earnings_text() -> String:
 	return "ROUND CR  /  " + " · ".join(parts)
 func award(amount: int) -> void:
 	if client() or amount<=0: return
-	game.progress.earn(amount)
+	var local_amount:=reward_amount(amount,1)
+	game.progress.earn(local_amount)
 	reward_serial+=1
-	round_earnings[1] = int(round_earnings.get(1,0))+amount
+	round_earnings[1] = int(round_earnings.get(1,0))+local_amount
 	if active:
-		for id in connected_peers(): round_earnings[id] = int(round_earnings.get(id,0))+amount
-		send_all("grant_money",[amount,reward_serial])
+		for id in connected_peers():
+			var peer_amount:=reward_amount(amount,id)
+			round_earnings[id] = int(round_earnings.get(id,0))+peer_amount
+			send_to(id,"grant_money",[peer_amount,reward_serial])
+func reward_amount(amount: int,peer: int=1) -> int:
+	return roundi(amount*game.rituals.factor("earnings",peer))
 @rpc("authority","reliable")
 func grant_money(amount: int,serial: int=-1) -> void:
 	if not client() or amount<=0: return
@@ -779,9 +784,9 @@ func surface_impact(point: Vector3,normal: Vector3,kind: String) -> void:
 	game.combat_fx.impact(point,normal,kind)
 
 @rpc("authority","call_remote","unreliable")
-func enemy_muzzle(point: Vector3,direction: Vector3) -> void:
+func enemy_muzzle(point: Vector3,direction: Vector3,kind: String="musket") -> void:
 	game.combat_fx.muzzle(point,direction)
-	game.sounds.play_at("musket",point,-7)
+	game.sounds.play_at("pepperbox" if kind=="pepperbox" else "musket",point,-7)
 
 @rpc("any_peer","reliable")
 func eat_mushroom(index: int) -> void:

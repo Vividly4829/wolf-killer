@@ -1,5 +1,6 @@
 extends Node
 const BOONS := {
+	"devil":{"name":"INFERNAL FORTUNE","effect":"earnings","factor":1.5,"description":"50% more earned credits per stack"},
 	"angel":{"name":"ANGEL DESTROYER","effect":"flat_damage","factor":31.0,"description":"+30 damage per hit per stack"},
 	"moose":{"name":"TITAN'S ENDURANCE","effect":"stamina_regen","factor":2.0,"description":"Double stamina recovery"},
 	"deer":{"name":"HART'S VIGOUR","effect":"stamina","factor":.65,"description":"35% less sprint stamina use"},
@@ -192,6 +193,7 @@ func status_entries() -> Array[Dictionary]:
 		var effect: String=BOONS[species].effect
 		var bonus:=roundi(absf(factor(effect)-1.0)*100.0)
 		var description: String={
+			"earnings":"+%d%% earned credits"%bonus,
 			"flat_damage":"+%d damage per hit"%roundi(flat_damage()),
 			"stamina_regen":"+%d%% stamina recovery"%bonus,
 			"stamina":"%d%% less sprint stamina use"%bonus,

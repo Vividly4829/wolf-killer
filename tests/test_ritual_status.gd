@@ -17,6 +17,6 @@ func run() -> void:
  root.mode=Window.MODE_WINDOWED; root.size=Vector2i(1280,720)
  await process_frame; await process_frame
  assert(not game.rituals.ui.visible)
- assert(game.rituals.status_entries().size()==13)
+ assert(game.rituals.status_entries().size()==14)
  print("RITUAL_STATUS_PASS: totals, stacks, full roster, no scattered label")
  quit()
