@@ -31,7 +31,7 @@ func run_checks() -> void:
 	var builder := Builder.new()
 	var cold_usec := 0
 	var warm_usec := 0
-	for index: int in 27:
+	for index: int in preload("res://scripts/weapon_catalog.gd").WEAPONS.size():
 		var start := Time.get_ticks_usec()
 		var cold: Dictionary = builder.build(index)
 		cold_usec += Time.get_ticks_usec() - start
@@ -76,13 +76,13 @@ func run_checks() -> void:
 			restored = restored and node.transform.is_equal_approx(node.get_meta("rest"))
 		check(restored, "Weapon %d remains buildable after original roots are freed, with pristine actions" % index)
 		(later.root as Node3D).free()
-	check(Builder._model_cache.size() == 27 and not cache_has_live_node(Builder._model_cache), "The bounded cache retains serialized resources and no live node templates")
+	check(Builder._model_cache.size() == preload("res://scripts/weapon_catalog.gd").WEAPONS.size() and not cache_has_live_node(Builder._model_cache), "The bounded cache retains serialized resources and no live node templates")
 	var orphan_count := int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT))
 	Builder._model_cache.erase(9)
 	Builder.warm_cache()
-	check(Builder._model_cache.size() == 27 and int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT)) == orphan_count, "Warm-up builds a missing model and frees its temporary procedural node hierarchy")
+	check(Builder._model_cache.size() == preload("res://scripts/weapon_catalog.gd").WEAPONS.size() and int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT)) == orphan_count, "Warm-up builds a missing model and frees its temporary procedural node hierarchy")
 	Builder.warm_cache()
-	check(Builder._model_cache.size() == 27 and int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT)) == orphan_count, "Repeated warm-up is idempotent and retains no extra orphan nodes")
+	check(Builder._model_cache.size() == preload("res://scripts/weapon_catalog.gd").WEAPONS.size() and int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT)) == orphan_count, "Repeated warm-up is idempotent and retains no extra orphan nodes")
 	var lemat_times: Array[int] = []
 	for iteration: int in 25:
 		var start := Time.get_ticks_usec()

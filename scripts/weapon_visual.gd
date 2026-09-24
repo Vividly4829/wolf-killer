@@ -21,6 +21,7 @@ var _primary_muzzle := Vector3.ZERO
 var _secondary_muzzle := Vector3.ZERO
 var dual_hand:=0
 var _fired_hand:=0
+var _main_hand: Node3D
 var _offhand: Node3D
 var _offhand_rest := Vector3.ZERO
 
@@ -56,6 +57,7 @@ func set_inspection_mode(enabled: bool) -> void:
 
 func set_loaded(loaded: bool) -> void:
 	_loaded=loaded
+	if _actions.has("arrow"): _actions.arrow.visible=loaded and not _reload_active
 	if _index==3 and _actions.has("bolt"):
 		_actions.bolt.visible=loaded and not _reload_active
 		if not _reload_active and _cycle_left<=0.0: _set_string(1.0 if loaded else .05)
@@ -135,6 +137,7 @@ func _create_hands() -> void:
 	add_child(_hands)
 	var handgun:=_index in [4,6,7,8,9,10,11,12,27,28,30,31,32,33]
 	var primary:=_hand(Vector3(0,-.01,-.1) if _index in [24,25] else Vector3(.016,-.050,.037),false)
+	_main_hand=primary
 	_offhand_rest=Vector3(-.035,-.057,-.38) if not handgun else Vector3(-.047,-.075,-.035)
 	_offhand=_hand(_offhand_rest,true)
 	if _index in [21,22,23]:
@@ -142,7 +145,7 @@ func _create_hands() -> void:
 		primary.position=Vector3(.05,-.06,.43)
 		_offhand_rest=Vector3(-.01,-.055,.015)
 		_offhand.position=_offhand_rest; _offhand.rotation.z=0
-	if _index in [24,25]: _offhand.visible=false
+	if _index in [18,19,24,25]: _offhand.visible=false
 	if _index in [30,31,32]:
 		primary.position.x+=.16
 		_offhand_rest=Vector3(-.256,-.050,.037)
@@ -175,6 +178,7 @@ func _set_string(draw: float) -> void:
 
 func animate_reload(progress: float, active: bool) -> void:
 	_reload_active=active
+	if _actions.has("arrow"): _actions.arrow.visible=_loaded and not active
 	if _actions.is_empty(): return
 	_reset_mechanisms()
 	_offhand.position=_offhand_rest
@@ -185,6 +189,7 @@ func animate_reload(progress: float, active: bool) -> void:
 		if _index==3:
 			_actions.bolt.visible=_loaded
 			_set_string(1.0 if _loaded else .05)
+		_follow_dual_hands()
 		return
 	if _index==26: _set_rotation("crank",0,progress*TAU*16)
 	var p:=clampf(progress,0.0,1.0)
@@ -200,6 +205,10 @@ func animate_reload(progress: float, active: bool) -> void:
 		_set_rotation("hammer",0,-.5*smoothstep(.85,.98,p))
 		return
 	match _action:
+		"siphon":
+			_actions.pump.position.z+=sin(p*TAU*5)*.06*open
+			_set_rotation("valve",0,open*TAU)
+			_offhand.position=_offhand_rest.lerp(Vector3(.09,.025,.03),open)
 		"toggle":
 			_set_rotation("toggle",0,-open*1.1)
 			_actions.drum.position.y-=open*.12
@@ -253,9 +262,19 @@ func animate_reload(progress: float, active: bool) -> void:
 			_actions.bolt.visible=p>.80
 			_offhand.position=_offhand_rest.lerp(Vector3(-.11,.08,-.03),open)
 
+	_follow_dual_hands()
+
+func _follow_dual_hands() -> void:
+	if _index not in [30,31,32]: return
+	_main_hand.position=_actions.naval_right.transform*Vector3(.016,-.050,.037)
+	_offhand.position=_actions.naval_left.transform*Vector3(-.016,-.050,.037)
+	_main_hand.rotation=_actions.naval_right.rotation
+	_offhand.rotation=_actions.naval_left.rotation
+
 func animate_cycle(progress: float) -> void:
 	if _index in [30,31,32]:
 		_set_rotation("naval_right" if _fired_hand==0 else "naval_left",0,sin(progress*PI)*.22)
+		_follow_dual_hands()
 	var stroke:=sin(clampf(progress,0.,1.)*PI)
 	_set_rotation("hammer",0,-.58*(1.-progress))
 	_set_rotation("hammer_left",0,-.58*(1.-progress))

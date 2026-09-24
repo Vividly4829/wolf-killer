@@ -100,7 +100,7 @@ func _instantiate_cached(cached: Dictionary) -> Dictionary:
 	return metadata
 
 func _make_materials() -> void:
-	for entry: Array in [["steel", "39434b", .80, .30], ["edge", "78828a", .85, .24], ["black", "151b20", .65, .42], ["brass", "bc9250", .80, .30], ["silver", "abb3b8", .80, .25], ["bore", "080b0d", .0, .97], ["ivory", "c9bf9b", .0, .72], ["string", "baa582", .0, .96], ["red", "783b25", .0, .84]]:
+	for entry: Array in [["steel", "343e48", .72, .43], ["edge", "78828a", .85, .24], ["black", "151b20", .65, .42], ["brass", "bc9250", .80, .30], ["silver", "929ea7", .75, .35], ["bore", "080b0d", .0, .97], ["ivory", "c9bf9b", .0, .72], ["string", "baa582", .0, .96], ["red", "783b25", .0, .84]]:
 		var material := StandardMaterial3D.new()
 		material.albedo_color = Color(str(entry[1]))
 		material.metallic = float(entry[2])
@@ -108,11 +108,15 @@ func _make_materials() -> void:
 		materials[str(entry[0])] = material
 	var wood := ShaderMaterial.new()
 	var shader := Shader.new()
-	shader.code = "shader_type spatial; render_mode cull_back; uniform vec4 wood_color: source_color = vec4(.30,.12,.05,1.); varying vec3 local_pos; void vertex(){local_pos=VERTEX;} void fragment(){float grain=sin(local_pos.z*95.+sin(local_pos.x*135.)*.8+sin(local_pos.y*80.)*1.6);float fine=sin(local_pos.z*430.+sin(local_pos.x*72.)*6.);float pores=pow(abs(sin(local_pos.z*251.+local_pos.x*83.)),18.);ALBEDO=wood_color.rgb*(.86+grain*.105+fine*.022-pores*.025);ROUGHNESS=.36+grain*.04;SPECULAR=.32;}"
+	shader.code = "shader_type spatial; render_mode cull_back; uniform vec4 wood_color: source_color = vec4(.30,.12,.05,1.); varying vec3 local_pos; void vertex(){local_pos=VERTEX;} void fragment(){float grain=sin(local_pos.z*95.+sin(local_pos.x*135.)*.8+sin(local_pos.y*80.)*1.6);float fine=sin(local_pos.z*430.+sin(local_pos.x*72.)*6.);float pores=pow(abs(sin(local_pos.z*251.+local_pos.x*83.)),18.);ALBEDO=wood_color.rgb*(.86+grain*.038+fine*.014-pores*.018);ROUGHNESS=.52+grain*.04;SPECULAR=.32;}"
 	wood.shader = shader
 	var colors := [Color("603e29"), Color("422b22"), Color("89572f"), Color("815933"), Color("4f2e23"), Color("713921"), Color("462b26"), Color("764029"), Color("4a2d24"), Color("492724"), Color("221e20"), Color("71422c"), Color("352723"), Color("644531"), Color("422d20"), Color("6c3c20"), Color("8c582e"), Color("6b3824")]
 	wood.set_shader_parameter("wood_color", colors[mini(index,colors.size()-1)])
 	materials.wood = wood
+	for entry in [["leather","49372c"],["paper","a84731"],["horn","38312a"],["copper","b36b43"],["fuel","52615b"]]:
+		var finish:=StandardMaterial3D.new(); finish.albedo_color=Color(entry[1]); finish.roughness=.72
+		if entry[0]=="copper": finish.metallic=.72; finish.roughness=.38
+		materials[entry[0]]=finish
 
 func _node(name: String, point: Vector3 = Vector3.ZERO, parent: Node3D = null) -> Node3D:
 	var node := Node3D.new()
@@ -213,6 +217,8 @@ func _barrel(parent: Node3D, start: float, end: float, y: float, radius: float, 
 	_ring(parent, Vector3(x,y,end), outer*.88, outer*.12, "edge")
 	_cylinder(parent, Vector3(x,y,end+.042), .004, outer*.75, "bore", Vector3.FORWARD, 40)
 	_ring(parent, Vector3(x,y,start-.005), radius*1.03, .003, "edge")
+	# The muzzle is hollow; the breech must not be a see-through pipe in first person.
+	_cylinder(parent,Vector3(x,y,start+.002),.006,radius*.98,material,Vector3.FORWARD,sides)
 
 func _screw(parent: Node3D, point: Vector3, radius: float = .006, axis: Vector3 = Vector3.RIGHT) -> void:
 	_cylinder(parent, point, .0025, radius, "silver", axis, 20)
@@ -247,13 +253,41 @@ func _stock(end: float, full: bool = false) -> void:
 		_rod(root, Vector3(x,-.016,.19), Vector3(x,.004,.045), .0016, "brass", 8)
 
 func _grip(parent: Node3D, short: bool = false, material: String = "wood") -> void:
-	var grip := _loft(parent, [Vector4(.075,-.155,.026,.022), Vector4(.047,-.140,.039,.035), Vector4(.025,-.088,.032,.047), Vector4(-.001,-.031,.025,.032)], material)
-	if short:
-		grip.scale = Vector3(.83,.75,.85)
+	# Rounded palm swell, flared heel and continuous backstrap, rather than a bent stick.
+	var grip:=Node3D.new(); parent.add_child(grip); grip.name="SculptedGrip"
+	if short: grip.scale=Vector3(.86,.78,.88)
+	var contour: Array=[Vector4(.177,.064,.033,.028),Vector4(.166,.062,.039,.038),Vector4(.138,.052,.036,.044),Vector4(.094,.032,.032,.044),Vector4(.042,.013,.027,.037),Vector4(-.010,.0,.023,.030)]
+	var strap:=_loft(grip,contour,"steel"); strap.rotation.x=PI/2
+	var panel:=_loft(grip,contour,material); panel.rotation.x=PI/2; panel.scale=Vector3(1.055,.90,.94); panel.position.y=-.004
 	for side: float in [-1.,1.]:
-		_screw(parent, Vector3(side*.033,-.099,.028), .006, Vector3.RIGHT*side)
-		for line: int in 6:
-			_rod(parent, Vector3(side*.034,-.074-float(line)*.009,.023), Vector3(side*.034,-.083-float(line)*.009,.050), .0009, "black", 6)
+		_screw(grip,Vector3(side*.036,-.105,.035),.005,Vector3.RIGHT*side)
+		for row in 9:
+			var y: float=-.064-row*.008
+			var z: float=.018+row*.004
+			_rod(grip,Vector3(side*.035,y,z-.017),Vector3(side*.035,y-.008,z+.017),.00065,"black",5)
+			_rod(grip,Vector3(side*.035,y,z+.017),Vector3(side*.035,y-.008,z-.017),.00065,"black",5)
+
+func _oval(parent: Node3D,point: Vector3,radii: Vector3,material: String) -> MeshInstance3D:
+	var sphere:=SphereMesh.new(); sphere.radius=1; sphere.height=2; sphere.radial_segments=24; sphere.rings=12
+	var node:=_mesh(parent,sphere,point,material); node.scale=radii; return node
+
+func _blade(parent: Node3D,outline: Array,thickness: float,material: String) -> void:
+	# A forged blade with a central ridge and an actual thin cutting edge.
+	var polygon:=PackedVector2Array(outline)
+	var center:=Vector2.ZERO
+	for p in polygon: center+=p
+	center/=polygon.size()
+	var surface:=SurfaceTool.new(); surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for i in polygon.size():
+		var a: Vector2=polygon[i]; var b: Vector2=polygon[(i+1)%polygon.size()]
+		for side in [-1.,1.]:
+			var vertices: Array[Vector3]=[Vector3(side*thickness,center.y,center.x),Vector3(0,a.y,a.x),Vector3(0,b.y,b.x)]
+			if side<0: vertices.reverse()
+			for vertex in vertices: surface.add_vertex(vertex)
+	surface.generate_normals(); surface.index()
+	var finish: Material=materials[material].duplicate()
+	finish.cull_mode=BaseMaterial3D.CULL_DISABLED
+	var mesh:=_mesh(parent,surface.commit(),Vector3.ZERO,material); mesh.material_override=finish
 
 func _guard(parent: Node3D, point: Vector3 = Vector3(0,-.054,-.060), width: float = .046, material: String = "brass", lever: bool = false) -> void:
 	var last := Vector3.ZERO
@@ -263,7 +297,7 @@ func _guard(parent: Node3D, point: Vector3 = Vector3(0,-.054,-.060), width: floa
 		if i > 0:
 			_rod(parent,last,p,.0045,material,8)
 		last = p
-	_rod(root, Vector3(0,-.022,point.z-.005), Vector3(0,-.062,point.z+.012), .004,"black")
+	_rod(parent, Vector3(0,-.022,point.z-.005), Vector3(0,-.062,point.z+.012), .004,"black")
 
 func _hammer(parent: Node3D, point: Vector3, flint: bool = false, name: String = "hammer") -> Node3D:
 	var hammer := _node(name,point,parent)
@@ -377,7 +411,7 @@ func _revolver() -> void:
 	var radius := .061 if lemat else .044
 	var length := .31 if index==7 else (.27 if index==8 else (.29 if lemat else (.24 if index==11 else .26)))
 	_grip(root,false,"ivory" if index==12 else "wood")
-	_box(root,Vector3(0,-.001,-.018),Vector3(.052,.055,.113),"brass" if index==7 else "steel")
+	_loft(root,[Vector4(.040,.004,.025,.043),Vector4(.006,-.006,.030,.038),Vector4(-.09,-.017,.028,.028),Vector4(-.14,.018,.029,.052)],"brass" if index==7 else "steel")
 	var assembly: Node3D = root
 	if index==12:
 		assembly=_node("break",Vector3(0,-.020,-.085))
@@ -385,6 +419,7 @@ func _revolver() -> void:
 	var cylinder := _node("cylinder",Vector3(0,.048,-.078),assembly)
 	_cylinder_drum(cylinder,9 if lemat else 6,radius,.097 if lemat else .081,index not in [7,9])
 	_cylinder(assembly,Vector3(0,.048,-.075),.129,.009,"edge")
+	_cylinder(root,Vector3(0,.048,-.027),.012,radius*.94,"steel",Vector3.FORWARD,40)
 	var y := .048+radius*.64
 	_barrel(assembly,-.12,-length-.12,y,.020 if not lemat else .023,0,8 if index in [7,8] else 40)
 	if index in [8,11,12]:
@@ -423,7 +458,7 @@ func _revolver() -> void:
 func _pepperbox() -> void:
 	action="pepperbox"
 	_grip(root)
-	_box(root,Vector3(0,.018,-.035),Vector3(.071,.075,.10),"silver")
+	_loft(root,[Vector4(.032,.014,.027,.042),Vector4(.006,.024,.034,.048),Vector4(-.058,.032,.035,.045),Vector4(-.094,.041,.028,.034)],"steel")
 	for side: float in [-1.,1.]: _engrave(root,side*.036,.02,-.035,.075)
 	var barrels := _node("cylinder",Vector3(0,.055,-.14))
 	for chamber: int in 6:
@@ -440,11 +475,11 @@ func _pepperbox() -> void:
 func _derringer() -> void:
 	action="derringer"
 	_grip(root,true,"black")
-	_box(root,Vector3(0,.020,-.018),Vector3(.049,.068,.079),"silver")
+	_loft(root,[Vector4(.040,.008,.023,.035),Vector4(.013,.025,.028,.040),Vector4(-.045,.032,.025,.026),Vector4(-.065,.032,.020,.018)],"silver")
 	var hinge := _node("break",Vector3(0,.065,-.033))
 	for y: float in [-.009,.024]: _barrel(hinge,.025,-.119,y,.019,0,36,"silver")
 	_box(hinge,Vector3(0,.037,-.06),Vector3(.014,.009,.115),"silver")
-	_sights(root,-.19,.085,.0)
+	_sights(hinge,-.119,.020,.033)
 	_hammer(root,Vector3(0,.043,.025))
 	_rod(root,Vector3(0,-.012,-.046),Vector3(0,-.037,-.039),.005,"black")
 	_screw(root,Vector3(.026,.025,-.015),.008)
@@ -595,45 +630,70 @@ func _count_triangles(parent: Node) -> int:
 	return count
 
 func _field_weapon() -> void:
-	action = "field"
-	muzzle = Vector3(0,0,-.65)
-	if index >= 21:
-		var bow := _node("bow")
-		for side in [-1,1]:
-			var previous := Vector3.ZERO
-			for segment in range(1,17):
-				var t := segment/16.0
-				var p := Vector3(0,side*t*(.58 if index==21 else .78),-.19*sin(t*PI*.7))
-				_rod(bow,previous,p,lerpf(.024,.008,t),"wood",12)
-				previous = p
-			_rod(bow,previous,Vector3(0,0,.13),.002,"string",8)
-		_rod(root,Vector3(0,0,.14),muzzle,.004,"wood",12)
-		_cylinder(root,muzzle,.045,.012,"edge",Vector3.FORWARD,4,0)
-		for side in [-1,1]: _box(root,Vector3(side*.012,0,.07),Vector3(.025,.003,.07),"ivory")
-		for i in 9: _cylinder(root,Vector3(0,(i-4)*.014,0),.009,.027,"string",Vector3.UP,16)
-		# A small physical aiming bead beside the arrow, never a screen crosshair.
+	action="field"
+	if index>=21:
+		var bow:=_node("bow")
+		var height: float=.59 if index==21 else .86 if index==22 else .68
+		for side in [-1.,1.]:
+			var last:=Vector3.ZERO
+			for i in range(1,25):
+				var t:=i/24.0
+				var curve: float=-.21*sin(t*PI*.75)
+				if index==23: curve+=.18*pow(t,5)
+				var point:=Vector3(0,side*height*t,curve)
+				var limb:=_cylinder(bow,(last+point)*.5,last.distance_to(point)+.002,lerpf(.025,.008,t),"horn" if index==23 else "wood",point-last,8)
+				limb.scale.x=.52
+				if index==23:
+					_rod(bow,last+Vector3(.002,0,.009),point+Vector3(.002,0,.009),lerpf(.007,.002,t),"wood",6)
+				last=point
+			_rod(bow,last,Vector3(0,0,.19),.0014,"string",8)
+			_cylinder(bow,last,.035,.009,"horn",Vector3.UP,10)
+		_oval(bow,Vector3.ZERO,Vector3(.025,.08,.03),"leather")
+		for i in 11: _ring(bow,Vector3(0,(i-5)*.012,0),.026,.0018,"string",Vector3.UP)
+		var arrow:=_node("arrow")
+		_rod(arrow,Vector3(0,0,.19),Vector3(0,0,-.65),.0035,"wood",12)
+		_cylinder(arrow,Vector3(0,0,-.66),.055,.012,"edge",Vector3.FORWARD,4,0)
+		for turn in 3:
+			var feather:=_box(arrow,Vector3(0,.012,.11),Vector3(.002,.025,.07),"ivory")
+			feather.position=feather.position.rotated(Vector3.FORWARD,turn*TAU/3); feather.rotation.z=turn*TAU/3
 		_rod(bow,Vector3(0,.075,-.18),Vector3(.13,.075,-.18),.002,"brass",8)
 		_cylinder(bow,Vector3(.13,.075,-.18),.004,.0025,"ivory",Vector3.FORWARD,10,0)
-		sight=Vector3(.13,.075,-.18)
-
-	elif index == 20:
-		_rod(root,Vector3(0,-.03,.4),Vector3(0,0,-1.05),.014,"wood",16)
-		_cylinder(root,Vector3(0,0,-1.13),.19,.033,"edge",Vector3.FORWARD,4,0)
-		muzzle = Vector3(0,0,-1.22)
-	elif index == 19:
-		_rod(root,Vector3(0,-.13,.10),Vector3(0,.22,-.28),.02,"wood",16)
-		_loft(root,[Vector4(-.23,.2,.025,.045),Vector4(-.32,.2,.11,.10),Vector4(-.36,.2,.115,.10)],"steel")
-		muzzle = Vector3(0,.2,-.36)
+		sight=Vector3(.13,.075,-.18); muzzle=Vector3(0,0,-.687)
+	elif index==20:
+		_rod(root,Vector3(0,-.03,.45),Vector3(0,0,-1.0),.014,"wood",16)
+		_cylinder(root,Vector3(0,0,-1.015),.15,.018,"steel")
+		_blade(root,[Vector2(-1.03,0),Vector2(-1.10,.034),Vector2(-1.24,0),Vector2(-1.10,-.034)],.009,"edge")
+		for i in 12: _ring(root,Vector3(0,0,-.91-i*.009),.015,.0017,"string")
+		_cylinder(root,Vector3(0,-.03,.45),.04,.016,"steel")
+		muzzle=Vector3(0,0,-1.24)
+	elif index==19:
+		_loft(root,[Vector4(.14,-.17,.021,.022),Vector4(.10,-.11,.018,.025),Vector4(-.10,.04,.017,.024),Vector4(-.27,.19,.018,.030)],"wood")
+		_cylinder(root,Vector3(0,.205,-.255),.07,.036,"steel",Vector3.UP,12)
+		_blade(root,[Vector2(-.22,.235),Vector2(-.34,.285),Vector2(-.40,.275),Vector2(-.405,.155),Vector2(-.36,.13),Vector2(-.26,.17)],.025,"steel")
+		_blade(root,[Vector2(-.36,.279),Vector2(-.40,.275),Vector2(-.405,.155),Vector2(-.36,.13)],.008,"edge")
+		_box(root,Vector3(0,.202,-.205),Vector3(.05,.058,.050),"steel")
+		for i in 6: _ring(root,Vector3(0,-.09+i*.012,.08-i*.014),.022,.002,"leather",Vector3(0,1,-1))
+		muzzle=Vector3(0,.2,-.405)
 	else:
-		_box(root,Vector3(0,0,.015),Vector3(.034,.025,.13),"wood")
-		_box(root,Vector3(0,0,-.055),Vector3(.07,.015,.015),"brass")
-		_loft(root,[Vector4(-.055,0,.02,.008),Vector4(-.22,0,.018,.006),Vector4(-.30,0,.0005,.001)],"edge")
-		muzzle = Vector3(0,0,-.30)
+		_loft(root,[Vector4(.09,0,.019,.020),Vector4(.07,0,.024,.023),Vector4(-.04,0,.022,.020),Vector4(-.06,0,.018,.016)],"wood")
+		_box(root,Vector3(0,0,-.058),Vector3(.058,.018,.012),"steel")
+		_blade(root,[Vector2(-.061,.018),Vector2(-.22,.018),Vector2(-.30,0),Vector2(-.22,-.018),Vector2(-.061,-.018)],.006,"edge")
+		for z in [.05,-.02]:
+			for side in [-1.,1.]: _screw(root,Vector3(side*.023,0,z),.004,Vector3.RIGHT*side)
+		_ring(root,Vector3(0,0,.094),.009,.002,"steel")
+		muzzle=Vector3(0,0,-.30)
 
 func _experimental() -> void:
 	if index==26:
 		_flintlock()
 		action="crank"
+		_box(root,Vector3(0,.069,-.39),Vector3(.097,.045,.34),"steel")
+		for coil in 22: _ring(root,Vector3(0,.07,-.29-coil*.009),.045,.0025,"copper")
+		for z in [-.22,-.56]:
+			_ring(root,Vector3(0,.07,z),.049,.005,"brass")
+		for x in [-.063,.063]:
+			_cylinder(root,Vector3(x,.055,-.36),.23,.017,"black")
+			for z in [-.245,-.475]: _cylinder(root,Vector3(x,.055,z),.018,.018,"brass")
 		for z in [-.25,-.35,-.45,-.55]: _ring(root,Vector3(0,.07,z),.052,.009,"brass",Vector3.FORWARD)
 		for x in [-.06,.06]: _cylinder(root,Vector3(x,.06,-.36),.32,.019,"silver",Vector3.FORWARD)
 		var crank := _node("crank",Vector3(.10,.04,-.12))
@@ -642,18 +702,29 @@ func _experimental() -> void:
 	else:
 		action="throw"
 		if index==24:
-			_cylinder(root,Vector3(0,0,-.10),.13,.055,"steel",Vector3.UP,16)
-			for y in [-.04,0,.04]: _ring(root,Vector3(0,y,-.10),.057,.005,"black",Vector3.UP)
+			_oval(root,Vector3(0,0,-.10),Vector3(.061,.073,.061),"steel")
+			_cylinder(root,Vector3(0,.068,-.10),.025,.023,"brass",Vector3.UP,12)
+			_ring(root,Vector3(0,.079,-.10),.022,.003,"edge",Vector3.UP)
+			for y in [-.034,0.,.034]: _ring(root,Vector3(0,y,-.10),.060*sqrt(1-pow(y/.078,2)),.002,"black",Vector3.UP)
+			_rod(root,Vector3(0,.083,-.10),Vector3(.01,.115,-.10),.003,"string")
+			_rod(root,Vector3(.01,.115,-.10),Vector3(.034,.128,-.085),.003,"string")
 		else:
-			for x in [-.035,0,.035]: _cylinder(root,Vector3(x,0,-.10),.20,.02,"wood",Vector3.UP,16)
-			for y in [-.05,.05]: _box(root,Vector3(0,y,-.10),Vector3(.12,.014,.05),"black")
-		_rod(root,Vector3(0,.07,-.10),Vector3(.025,.14,-.10),.004,"string")
+			for x in [-.034,0.,.034]:
+				_cylinder(root,Vector3(x,0,-.10),.20,.019,"paper",Vector3.UP,20)
+				for y in [-.099,.099]: _cylinder(root,Vector3(x,y,-.10),.003,.018,"ivory",Vector3.UP,20)
+			for y in [-.053,.053]:
+				_box(root,Vector3(0,y,-.10),Vector3(.11,.014,.044),"leather")
+				_box(root,Vector3(0,y,-.125),Vector3(.022,.020,.003),"brass")
+			_box(root,Vector3(0,0,-.120),Vector3(.073,.055,.002),"ivory")
+			for y in [-.014,-.005,.004,.013]: _box(root,Vector3(0,y,-.122),Vector3(.049,.002,.001),"red")
+			_rod(root,Vector3(0,.1,-.1),Vector3(.02,.13,-.1),.003,"string")
+			_rod(root,Vector3(.02,.13,-.1),Vector3(.035,.14,-.07),.003,"string")
 		muzzle=Vector3(0,.05,-.1)
 
 func _lancaster() -> void:
 	action="break"
 	_grip(root)
-	_box(root,Vector3(0,.025,-.03),Vector3(.07,.09,.12),"steel")
+	_loft(root,[Vector4(.039,.015,.029,.039),Vector4(.012,.035,.036,.049),Vector4(-.07,.044,.040,.052),Vector4(-.115,.044,.037,.048)],"steel")
 	var hinge:=_node("break",Vector3(0,.015,-.11))
 	for x: float in [-.025,.025]:
 		for y: float in [.025,.075]:
@@ -665,7 +736,7 @@ func _lancaster() -> void:
 	for side: float in [-1.,1.]:
 		_engrave(root,side*.037,.025,-.035,.085)
 		_screw(root,Vector3(side*.038,.027,-.060),.007,Vector3.RIGHT*side)
-	_sights(root,-.41,.105,-.06)
+	_sights(hinge,-.30,.09,.05)
 	muzzle=Vector3(.025,.09,-.42)
 
 func _mauser_revolver() -> void:
@@ -725,19 +796,39 @@ func _paired_period() -> void:
 	action="naval"
 	for hand in 2:
 		var holder:=_node("naval_right" if hand==0 else "naval_left",Vector3(.16 if hand==0 else -.24,0,0))
-		var data: Dictionary=(get_script().new()).build(5 if index==31 else 11)
-		var gun: Node3D=data.root; holder.add_child(gun)
-		gun.scale=Vector3.ONE*(.67 if index==31 else 1.)
-		var tip: Vector3=holder.position+data.muzzle*gun.scale
-		if hand==0:
-			muzzle=tip; sight=holder.position+data.sight*gun.scale
+		var tip: Vector3
+		if index==31:
+			# Purpose-built pistols: shoulder stocks do not belong on dual-wielded guns.
+			_grip(holder)
+			_loft(holder,[Vector4(.04,.006,.03,.034),Vector4(-.14,.023,.034,.027),Vector4(-.29,.025,.024,.023)],"wood")
+			_barrel(holder,-.025,-.34,.066,.025,0,40,"brass",.056)
+			_ring(holder,Vector3(0,.066,-.335),.055,.003,"brass")
+			_box(holder,Vector3(.032,.04,-.075),Vector3(.01,.05,.11),"steel")
+			_engrave(holder,.039,.04,-.075,.085)
+			_hammer(holder,Vector3(.032,.063,.012),true,"naval_hammer_%d"%hand)
+			_guard(holder,Vector3(0,-.043,-.027),.034,"brass")
+			_cylinder(holder,Vector3(0,-.009,-.15),.29,.004,"steel")
+			_sights(holder,-.34,.121,-.08)
+			tip=holder.position+Vector3(0,.066,-.35)
+			if hand==0: sight=holder.position+Vector3(0,.156,-.08)
+		else:
+			var data: Dictionary=(get_script().new()).build(11)
+			var gun: Node3D=data.root; holder.add_child(gun)
+			tip=holder.position+data.muzzle
+			if hand==0: sight=holder.position+data.sight
+			source_meshes+=int(data.source_meshes); source_triangles+=int(data.source_triangles)
+		if hand==0: muzzle=tip
 		else: secondary_muzzle=tip
-		source_meshes+=int(data.source_meshes); source_triangles+=int(data.source_triangles)
+
+	if index==31: sight=Vector3(.16,.156,-.08)
 
 func _luger() -> void:
 	action="toggle"
 	_grip(root,false,"wood")
-	_box(root,Vector3(0,.033,-.065),Vector3(.055,.080,.18),"steel")
+	_loft(root,[Vector4(.035,.015,.025,.035),Vector4(-.02,.028,.029,.031),Vector4(-.115,.043,.027,.029),Vector4(-.18,.059,.021,.022)],"steel")
+	for side in [-1.,1.]:
+		_rod(root,Vector3(side*.029,.075,.019),Vector3(side*.029,.075,-.115),.004,"edge")
+		_screw(root,Vector3(side*.03,.018,-.015),.004,Vector3.RIGHT*side)
 	_barrel(root,-.10,-.40,.078,.018,0,40)
 	_cylinder(root,Vector3(0,.076,-.095),.075,.028,"steel")
 	var toggle:=_node("toggle",Vector3(0,.095,-.04))
@@ -752,7 +843,7 @@ func _luger() -> void:
 		_ring(drum,Vector3(side*.034,0,0),.092,.003,"edge",Vector3.RIGHT)
 		_cylinder(drum,Vector3(side*.038,0,0),.004,.024,"black",Vector3.RIGHT)
 		_rod(drum,Vector3(side*.041,0,0),Vector3(side*.041,-.055,-.035),.005,"steel")
-	_box(root,Vector3(0,-.13,.0),Vector3(.038,.12,.055),"black")
+	_loft(root,[Vector4(.05,-.15,.018,.050),Vector4(.025,-.145,.018,.047),Vector4(.0,-.11,.018,.027)],"black")
 	_sights(root,-.4,.096,-.14); muzzle=Vector3(0,.078,-.415)
 
 func _hand_mortar() -> void:
@@ -764,23 +855,39 @@ func _hand_mortar() -> void:
 	for z in [-.04,-.29]: _ring(breech,Vector3(0,.05,z),.079,.007,"steel")
 	_guard(root,Vector3(0,-.045,-.035),.043,"steel")
 	_hammer(root,Vector3(.05,.053,.02))
-	_sights(root,-.55,.17,-.14)
-	for i in 4: _box(root,Vector3(.027,.13+i*.017,-.14),Vector3(.04,.003,.006),"silver")
+	_sights(breech,-.40,.14,.01)
+	for i in 4: _box(breech,Vector3(.027,.10+i*.017,.01),Vector3(.04,.003,.006),"silver")
 	muzzle=Vector3(0,.08,-.57)
 
 func _fire_siphon() -> void:
-	action="muzzle"
+	action="siphon"
 	_stock(-.40)
-	_box(root,Vector3(0,.03,-.13),Vector3(.09,.09,.28),"steel")
-	_barrel(root,-.18,-.65,.08,.037,0,24,"brass")
-	for z in [-.24,-.40,-.56]: _ring(root,Vector3(0,.08,z),.044,.008,"steel")
-	for side in [-1,1]:
-		_cylinder(root,Vector3(side*.105,-.09,-.15),.30,.073,"brass",Vector3.UP)
-		_ring(root,Vector3(side*.105,-.16,-.15),.077,.007,"steel",Vector3.UP)
-		_rod(root,Vector3(side*.105,.065,-.15),Vector3(side*.035,.09,-.42),.012,"black")
-	_cylinder(root,Vector3(.1,.115,-.05),.013,.045,"ivory",Vector3.UP)
-	_rod(root,Vector3(.1,.125,-.05),Vector3(.12,.125,-.08),.003,"red")
-	_guard(root,Vector3(0,-.065,-.07),.04,"steel")
-	_rod(root,Vector3(.035,.04,-.52),Vector3(.035,.035,-.68),.008,"brass")
-	_sights(root,-.60,.135,-.10)
+	_loft(root,[Vector4(.015,.025,.039,.034),Vector4(-.20,.035,.045,.040),Vector4(-.35,.05,.036,.029)],"steel")
+	_barrel(root,-.18,-.65,.08,.027,0,32,"brass")
+	for z in [-.24,-.32,-.40,-.48,-.56]: _ring(root,Vector3(0,.08,z),.032,.004,"steel")
+	# One connected reservoir, with domed ends, retaining straps and a pressure pump.
+	_cylinder(root,Vector3(0,-.105,-.28),.35,.063,"fuel",Vector3.FORWARD,32)
+	for z in [-.105,-.455]: _oval(root,Vector3(0,-.105,z),Vector3(.063,.063,.025),"brass")
+	for z in [-.16,-.40]:
+		_ring(root,Vector3(0,-.105,z),.066,.005,"steel")
+		_box(root,Vector3(0,-.038,z),Vector3(.035,.060,.023),"steel")
+	_cylinder(root,Vector3(.09,.025,-.14),.20,.020,"brass",Vector3.FORWARD)
+	var pump:=_node("pump",Vector3(.09,.025,-.035))
+	_cylinder(pump,Vector3(0,0,.02),.08,.006,"edge")
+	_cylinder(pump,Vector3(0,0,.066),.07,.014,"wood",Vector3.RIGHT)
+	var valve:=_node("valve",Vector3(-.055,.016,-.30))
+	_ring(valve,Vector3.ZERO,.028,.004,"red",Vector3.RIGHT)
+	for i in 4: _rod(valve,Vector3.ZERO,Vector3(0,sin(i*TAU/4),cos(i*TAU/4))*.028,.003,"brass")
+	var hose: Array[Vector3]=[Vector3(.045,-.13,-.12),Vector3(.08,-.12,-.16),Vector3(.085,-.045,-.24),Vector3(.07,.005,-.41),Vector3(.025,.06,-.50)]
+	for i in range(1,hose.size()): _rod(root,hose[i-1],hose[i],.008,"black",12)
+	_cylinder(root,Vector3(.075,.115,-.20),.021,.030,"brass",Vector3.UP)
+	_cylinder(root,Vector3(.075,.128,-.20),.003,.025,"ivory",Vector3.UP)
+	for i in 9:
+		var angle:=i*PI/6
+		_rod(root,Vector3(.075+cos(angle)*.02,.131,-.20+sin(angle)*.02),Vector3(.075+cos(angle)*.024,.131,-.20+sin(angle)*.024),.0008,"black",5)
+	_rod(root,Vector3(.075,.133,-.20),Vector3(.060,.133,-.213),.0015,"red")
+	_guard(root,Vector3(0,-.052,-.025),.033,"steel")
+	_rod(root,Vector3(.027,.035,-.50),Vector3(.027,.035,-.675),.005,"copper")
+	_ring(root,Vector3(0,.08,-.625),.031,.004,"copper")
+	_sights(root,-.60,.11,-.10)
 	muzzle=Vector3(0,.08,-.67)
