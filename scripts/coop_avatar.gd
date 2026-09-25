@@ -60,6 +60,7 @@ func _process(delta: float) -> void:
 	var moved:=position.distance_to(previous_position)/maxf(delta,.001)
 	rendered_speed=lerpf(rendered_speed,minf(10,moved),1-exp(-delta*8))
 	previous_position=position
+	character.seated=bool(get_meta("cat_riding",false))
 	character.set_motion(rendered_speed,is_crouching,true,mauling!=0)
 	character.set_process(health>0)
 	character.rotation.z=lerp_angle(character.rotation.z,1.4 if health<=0 else 0,1-exp(-delta*6))

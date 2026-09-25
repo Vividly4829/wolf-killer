@@ -329,6 +329,8 @@ func _physics_process(delta: float) -> void:
 		axis.y = float(key_held(KEY_S)) - float(key_held(KEY_W))
 	if controller_device>=0 and not movement_locked: axis=pad_move()
 	axis = axis.limit_length(1.0)
+	var riding: bool = game.guardians and game.guardians.occupied(game.guardians.local_id())>=0
+	if riding: game.guardians.local_control(axis,yaw,delta)
 	var aboard: bool = game.boats and game.boats.occupied(game.boats.local_id())>=0
 	if aboard:
 		game.boats.local_control(axis,Input.is_physical_key_pressed(KEY_SPACE) if controller_device<0 else Input.is_joy_button_pressed(controller_device,JOY_BUTTON_A),delta)
@@ -337,7 +339,7 @@ func _physics_process(delta: float) -> void:
 		_sprint_exhausted = true
 	elif stamina >= 20.0:
 		_sprint_exhausted = false
-	var sprinting: bool = not aboard and key_held(KEY_SHIFT) and not is_crouching and leg_injury < 0.85 and not _sprint_exhausted and axis.length_squared() > 0.0
+	var sprinting: bool = not aboard and not riding and key_held(KEY_SHIFT) and not is_crouching and leg_injury < 0.85 and not _sprint_exhausted and axis.length_squared() > 0.0
 	is_sprinting = sprinting
 	aiming = aiming and not sprinting
 	if sprinting: _aim = 0.0
@@ -354,9 +356,10 @@ func _physics_process(delta: float) -> void:
 	var desired: Vector3 = (right * axis.x - forward * axis.y) * speed
 	# Musket loading plants the feet; gravity still resolves a jump already
 	# in progress. The game timer also releases this lock when a weapon is changed.
-	if aboard:
+	if aboard or riding:
 		_velocity=Vector2.ZERO; _actual_speed=0; _jump_height=0; _jump_velocity=0; ground_view_offset=0
-		game.boats.place_riders(game.coop.client())
+		if riding: game.guardians.place_riders()
+		else: game.boats.place_riders(game.coop.client())
 	else:
 		_velocity = Vector2.ZERO if movement_locked else _velocity.move_toward(Vector2(desired.x, desired.z), delta * 8.5 * (1.0 - leg_injury * 0.35))
 		var moved: Vector3 = nav.call("move_position", position, _velocity.x * delta, _velocity.y * delta)

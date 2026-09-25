@@ -311,6 +311,7 @@ func _physics_process(delta: float) -> void:
 		damage(bleeding_rate*delta,wounded_by_hunter)
 		set_meta("bleed_tick",false)
 		if dead: return
+	if game.get("guardians") and game.guardians.defend_against(self,delta): return
 	if defensive_deer(delta): return
 	var hunters: Array = [game.player]
 	if game.coop.active: hunters.append_array(game.coop.avatars.values())

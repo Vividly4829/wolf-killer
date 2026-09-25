@@ -79,7 +79,7 @@ func travel(peer: int,destination: int) -> bool:
 	var hunter: Node3D=game.player if peer==1 else game.coop.avatars.get(peer)
 	if not is_instance_valid(hunter) or nearby(hunter.position)<0: return false
 	if (game.health<=0 or game.is_struggling()) if peer==1 else (hunter.health<=0 or hunter.mauling!=0): return false
-	if game.rituals.tasks.has(peer): return false
+	if game.rituals.tasks.has(peer) or (game.guardians and game.guardians.occupied(peer)>=0): return false
 	if peer==1: arrived(destination)
 	else:
 		hunter.position=points[destination]; game.coop.send_to(peer,"travel_arrived",[destination])

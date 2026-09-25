@@ -127,6 +127,7 @@ func _physics_process(delta: float) -> void:
 		if trail<=0: game.gore.blood_pool(position,.15); trail=.65
 		if bleeding_rate>0: damage(bleeding_rate*delta,paid)
 	if dead or reaction.down>0: return
+	if game.get("guardians") and game.guardians.defend_against(self,delta): return
 	if search:
 		search.advance()
 		if search.finished: route=search.result; search=null

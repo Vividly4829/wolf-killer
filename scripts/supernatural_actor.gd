@@ -58,6 +58,7 @@ func _physics_process(delta: float) -> void:
 	if reaction.hold_incapacitated(): return
 	cooldown=maxf(0,cooldown-delta)
 	if not alerted: return
+	if game.get("guardians") and game.guardians.defend_against(self,delta): return
 	target=game.player if marked_peer==1 else game.coop.avatars.get(marked_peer)
 	if not is_instance_valid(target) or (game.health if target==game.player else target.health)<=0: target=choose_target()
 	if not is_instance_valid(target): return

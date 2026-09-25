@@ -117,6 +117,7 @@ func join_session(address: String) -> void:
 	multiplayer.multiplayer_peer = peer
 	active = true
 func leave() -> void:
+	if game.guardians: game.guardians.release_all()
 	if game.boats: game.boats.release_all()
 	if internet: internet.stop()
 	multiplayer.auth_callback=Callable()
@@ -340,7 +341,7 @@ func _process(delta: float) -> void:
 	for bolt in game.nodes_in_group("player_bolts")+game.nodes_in_group("enemy_bolts"):
 		projectiles.append({"id":bolt.get_instance_id(),"p":bolt.position,"v":bolt.velocity,"type":bolt.spec.id,"fuse":maxf(0,float(bolt.spec.get("fuse",0))-float(bolt.get("age"))) if bolt.spec.get("explosive",false) and not bolt.spec.get("launcher",false) else -1.0})
 	for id in connected_peers():
-		send_to(id,"state",[hunters,animals,game.level,game.mode,game.intermission,game.pending_spawns,game.wave_total,projectiles,game.world.houses.drops,game.wave_kills,generation,game.campaign.snapshot(),game.boats.snapshot()])
+		send_to(id,"state",[hunters,animals,game.level,game.mode,game.intermission,game.pending_spawns,game.wave_total,projectiles,game.world.houses.drops,game.wave_kills,generation,game.campaign.snapshot(),game.boats.snapshot(),game.guardians.snapshot()])
 	if game.level!=previous_wave and game.mode=="resting":
 		generation += 1
 		for id in avatars:
@@ -359,7 +360,7 @@ func pose(p: Vector3,yaw: float,crouch: bool,noise: float,hp: float,weapon: int,
 	var avatar = avatars[id]
 	if life!=int(avatar.get_meta("revive_revision",0)): return
 	var offset: Vector3 = p-avatar.position
-	var aboard: bool = game.boats.occupied(id)>=0
+	var aboard: bool = game.boats.occupied(id)>=0 or game.guardians.occupied(id)>=0
 	if aboard: p=avatar.position; offset=Vector3.ZERO
 	if offset.length()>3.0: send_to(id,"correct_position",[avatar.position]); return
 	if not aboard: avatar.position = game.world.nav.move_position(avatar.position,offset.x,offset.z)
@@ -378,9 +379,10 @@ func pose(p: Vector3,yaw: float,crouch: bool,noise: float,hp: float,weapon: int,
 @rpc("authority","reliable")
 func correct_position(p: Vector3) -> void: game.player.position = p
 @rpc("authority","call_remote","reliable",1)
-func state(hunters: Array,animals: Array,wave: int,mode: String,waiting: bool,pending: int,total: int,projectiles: Array,loot: Array,hunted: int,epoch: int,mission: Dictionary = {},boats: Array = []) -> void:
+func state(hunters: Array,animals: Array,wave: int,mode: String,waiting: bool,pending: int,total: int,projectiles: Array,loot: Array,hunted: int,epoch: int,mission: Dictionary = {},boats: Array = [],cats: Array = []) -> void:
 	if not client() or epoch!=generation: return
 	game.boats.apply_snapshot(boats)
+	game.guardians.apply_snapshot(cats)
 	game.campaign.apply_snapshot(mission)
 	if mode=="victory" and game.mode!="victory": game.set_mode("victory")
 	game.wave_kills = hunted
@@ -598,6 +600,7 @@ func grant_money(amount: int,serial: int=-1) -> void:
 	game.progress.save_progress()
 func begin_remote_maul(wolf: Node3D,avatar: Node3D) -> bool:
 	if avatar.mauling!=0: return false
+	if game.guardians and game.guardians.occupied(avatar.peer_id)>=0: game.guardians.dismount(game.guardians.cats[game.guardians.occupied(avatar.peer_id)])
 	if wolf.werewolf and not avatar.has_meta("infected_wave"):
 		avatar.set_meta("infected_wave",game.level); avatar.set_beast(true)
 	avatar.mauling = wolf.get_instance_id()
@@ -934,3 +937,14 @@ func revived(point: Vector3,epoch: int,revision: int) -> void:
 	if is_instance_valid(local_area): local_area.collision_layer=2
 	game.set_mode("playing")
 	game.show_notice("Your teammate revived you / 10 HP",3)
+
+@rpc("any_peer","reliable")
+func cat_interact() -> void:
+	if server(): game.guardians.request(sender_id())
+@rpc("any_peer","unreliable_ordered")
+func cat_control(axis: Vector2,heading: float) -> void:
+	if server(): game.guardians.control(sender_id(),axis,heading)
+@rpc("authority","reliable")
+func cat_state(data: Array) -> void: game.guardians.apply_snapshot(data)
+@rpc("authority","reliable")
+func cat_exit(point: Vector3) -> void: game.guardians.settle_rider(point)

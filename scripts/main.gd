@@ -21,6 +21,7 @@ var supernatural: Node
 var rituals: Node
 var mushrooms: Node3D
 var combat_fx: Node3D
+var guardians: Node3D
 var boats: Node3D
 var world: Node3D
 var player: Node3D
@@ -128,6 +129,7 @@ func _sync_weapon_visual() -> void:
 
 func _replenish_ammunition() -> void:
 	if boats: boats.release_all()
+	if guardians: guardians.reset_round()
 	if affliction: affliction.psychedelic = false
 	if mushrooms: mushrooms.regrow(level)
 	ammo = WeaponCatalog.full_magazines()
@@ -176,6 +178,7 @@ func _ready() -> void:
 	coop.game = self
 	add_child(coop)
 	boats=preload("res://scripts/coastal_boats.gd").new(); boats.game=self; add_child(boats)
+	guardians=preload("res://scripts/cabin_guardians.gd").new(); guardians.game=self; add_child(guardians)
 	campaign = preload("res://scripts/campaign_director.gd").new()
 	campaign.game = self
 	add_child(campaign)
@@ -1011,6 +1014,7 @@ func start_wolf_struggle(wolf: Node3D) -> bool:
 	if free_play: return false
 	if not is_playing() or is_player_safe() or health <= 0.0 or is_struggling() or struggle_grace > 0.0 or not is_instance_valid(wolf) or wolf.dead:
 		return false
+	if guardians and not coop.client() and guardians.occupied(1)>=0: guardians.dismount(guardians.cats[guardians.occupied(1)])
 	struggle_wolf = wolf
 	struggle_progress = 0.0
 	stab_left=0
@@ -1081,6 +1085,9 @@ func use_bandage() -> void:
 
 func interaction_prompt() -> String:
 	if coop.revive_target()>0: return "[ %s ] REVIVE TEAMMATE / 10 HP"%("Y" if controller_device>=0 else "E")
+	if guardians and health>0:
+		var riding: String=guardians.prompt()
+		if not riding.is_empty(): return riding
 	if boats and health>0:
 		var boating: String=boats.prompt()
 		if not boating.is_empty(): return boating
@@ -1124,6 +1131,7 @@ func interact_shop() -> void:
 		if coop.client(): coop.send_to(1,"request_revive",[fallen,coop.generation])
 		else: coop.revive_teammate(1,fallen)
 		return
+	if guardians and is_playing() and health>0 and not is_struggling() and not rituals.channeling() and guardians.interact(): return
 	if boats and is_playing() and health>0 and not is_struggling() and not rituals.channeling() and boats.interact(): return
 	if is_playing() and health>0 and not is_struggling() and supernatural.nearby():
 		if coop.client(): coop.send_to(1,"devil_deal",[])

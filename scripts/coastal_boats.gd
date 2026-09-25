@@ -127,7 +127,7 @@ func request(peer: int) -> bool:
 	var actor:=hunter(peer)
 	if not is_instance_valid(actor): return false
 	if (game.health<=0 or game.is_struggling()) if peer==1 else (actor.health<=0 or actor.mauling!=0): return false
-	if game.rituals.tasks.has(peer): return false
+	if game.rituals.tasks.has(peer) or (game.guardians and game.guardians.occupied(peer)>=0): return false
 	var i:=occupied(peer)
 	if i<0: i=nearby(actor.position)
 	if i<0: return false

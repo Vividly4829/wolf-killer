@@ -1125,6 +1125,7 @@ func _physics_process(delta: float) -> void:
 			_die()
 			return
 	if reaction and reaction.down>0: return
+	if game.get("guardians") and game.guardians.defend_against(self,delta): return
 	if _hunt_raider(delta,player): return
 	_pack.clock = maxf(float(_pack.get("clock", 0.0)), _time + _clock_offset)
 	if game.get("free_play"):
