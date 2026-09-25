@@ -224,6 +224,11 @@ func animate_reload(progress: float, active: bool) -> void:
 			_actions.powder.visible=p<.27
 			if p>=.40 and p<.82:
 				_actions.ramrod.position=Vector3(0,_primary_muzzle.y,_primary_muzzle.z-.17-work*.22)
+				if model_meta.has("volley_muzzles"):
+					var chamber:=clampi(int((p-.40)/.42*7),0,6)
+					var tip: Vector3=model_meta.volley_muzzles[chamber]
+					_actions.ramrod.position.x=tip.x
+					_actions.ramrod.position.y=tip.y
 				_offhand.position=_actions.ramrod.position+Vector3(.025,.018,-.08)
 			else:
 				_offhand.position=_offhand_rest.lerp(Vector3(.02,.09,_primary_muzzle.z),open)
@@ -311,6 +316,13 @@ func _create_flash() -> void:
 	_flash_mesh.visible=false
 	_flash_mesh.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_effects.add_child(_flash_mesh)
+	if model_meta.has("volley_muzzles"):
+		for tip: Vector3 in model_meta.volley_muzzles.slice(1):
+			var extra:=MeshInstance3D.new()
+			extra.mesh=shape; extra.material_override=material
+			extra.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			_flash_mesh.add_child(extra)
+			extra.position=(tip-muzzle_position)/_flash_mesh.scale
 	_flash_light=OmniLight3D.new()
 	_flash_light.position=muzzle_position
 	_flash_light.light_color=Color("ffd499")
@@ -333,7 +345,7 @@ func flash() -> void:
 		return
 	_flash_time=.075 if _action=="muzzle" else .05
 	_flash_mesh.visible=not _inspection
-	_flash_mesh.rotation.z=randf()*TAU
+	_flash_mesh.rotation.z=0.0 if model_meta.has("volley_muzzles") else randf()*TAU
 	_flash_light.light_energy=0.0 if _inspection else 3.0
 	if not _inspection: _spawn_smoke()
 
@@ -344,11 +356,13 @@ func _spawn_smoke() -> void:
 	cloud.global_transform=global_transform
 	cloud.global_position=to_global(muzzle_position)
 	# Three tapered tongues project forward from the actual firing barrel.
-	for i in 3:
+	for i in (7 if model_meta.has("volley_muzzles") else 3):
+		var tongue:=0 if model_meta.has("volley_muzzles") else i
 		var flame:=MeshInstance3D.new(); var shape:=CylinderMesh.new()
-		shape.top_radius=.003; shape.bottom_radius=.07-i*.018; shape.height=.44-i*.10; shape.radial_segments=7
+		shape.top_radius=.003; shape.bottom_radius=.045 if model_meta.has("volley_muzzles") else .07-tongue*.018; shape.height=.44-tongue*.10; shape.radial_segments=7
 		flame.mesh=shape; flame.rotation.x=-PI/2; flame.position.z=-shape.height*.5
-		var mat:=preload("res://scripts/combat_fx.gd").material(Color(1,.3+i*.24,.03+i*.23,.9),true)
+		if model_meta.has("volley_muzzles"): flame.position+=model_meta.volley_muzzles[i]-muzzle_position
+		var mat:=preload("res://scripts/combat_fx.gd").material(Color(1,.3+tongue*.24,.03+tongue*.23,.9),true)
 		flame.material_override=mat; flame.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF; cloud.add_child(flame)
 		var fade:=flame.create_tween(); fade.tween_property(mat,"albedo_color:a",0,.16); fade.tween_callback(flame.queue_free)
 	var puffs:=10 if _action=="muzzle" else 5

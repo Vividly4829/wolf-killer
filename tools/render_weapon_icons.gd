@@ -11,7 +11,11 @@ func run() -> void:
 		var light:=DirectionalLight3D.new(); light.rotation_degrees=rotation; light.light_energy=1.3; viewport.add_child(light)
 	var camera:=Camera3D.new(); camera.projection=Camera3D.PROJECTION_ORTHOGONAL; camera.position.z=4; viewport.add_child(camera); camera.current=true
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://assets/weapon_icons"))
-	for index in 36:
+	var selected: Array[int]=[]
+	for argument in OS.get_cmdline_user_args():
+		if argument.begins_with("--weapon="): selected.append(int(argument.trim_prefix("--weapon=")))
+	for index in preload("res://scripts/weapon_catalog.gd").WEAPONS.size():
+		if not selected.is_empty() and index not in selected: continue
 		var pivot:=Node3D.new(); viewport.add_child(pivot)
 		var weapon=preload("res://scripts/weapon_visual.gd").new(); weapon.set_inspection_mode(true); pivot.add_child(weapon); weapon.set_process(false); weapon.build(index)
 		var bounds: AABB=weapon.get_model_bounds(); weapon.position=-bounds.get_center()

@@ -59,6 +59,7 @@ func build(weapon_index: int) -> Dictionary:
 		33: _luger()
 		34: _hand_mortar()
 		35: _fire_siphon()
+		36: _volley_gun()
 		_: _rifle()
 	if sight==Vector3.ZERO: sight = muzzle+Vector3(0,.035,0)
 	for key: String in actions:
@@ -67,6 +68,7 @@ func build(weapon_index: int) -> Dictionary:
 	_merge_group(root)
 	mesh_count = _count_meshes(root)
 	var metadata := {"sight": sight, "muzzle": muzzle, "secondary_muzzle": secondary_muzzle, "action": action, "name": preload("res://scripts/weapon_catalog.gd").WEAPONS[index].name, "mesh_count": mesh_count, "source_meshes": source_meshes, "source_triangles": source_triangles, "triangles": _count_triangles(root)}
+	if index==36: metadata["volley_muzzles"] = volley_muzzles()
 	var action_paths: Dictionary = {}
 	for key: String in actions: action_paths[key] = root.get_path_to(actions[key])
 	_assign_scene_owners(root)
@@ -837,13 +839,21 @@ func _luger() -> void:
 		_cylinder(toggle,Vector3(x,.007,.005),.016,.022,"steel",Vector3.RIGHT)
 		for line in 10: _rod(toggle,Vector3(x-.008,.012,-.01+line*.003),Vector3(x+.008,.012,-.01+line*.003),.001,"edge",6)
 	_guard(root,Vector3(0,-.045,-.055),.035,"steel")
-	var drum:=_node("drum",Vector3(0,-.215,.02))
-	_cylinder(drum,Vector3.ZERO,.065,.105,"steel",Vector3.RIGHT,48)
+	# TM08 drum hangs ahead of the extended grip, with its face angled
+	# fore/aft rather than sideways like a conventional box-fed drum.
+	var drum:=_node("drum",Vector3(0,-.272,.003))
+	var axis:=Vector3(0,.55,.835).normalized()
+	_cylinder(drum,Vector3.ZERO,.057,.087,"steel",axis,48)
 	for side in [-1.,1.]:
-		_ring(drum,Vector3(side*.034,0,0),.092,.003,"edge",Vector3.RIGHT)
-		_cylinder(drum,Vector3(side*.038,0,0),.004,.024,"black",Vector3.RIGHT)
-		_rod(drum,Vector3(side*.041,0,0),Vector3(side*.041,-.055,-.035),.005,"steel")
-	_loft(root,[Vector4(.05,-.15,.018,.050),Vector4(.025,-.145,.018,.047),Vector4(.0,-.11,.018,.027)],"black")
+		for radius in [.072,.082]: _ring(drum,axis*side*.030,radius,.0025,"edge",axis)
+		_cylinder(drum,axis*side*.033,.004,.020,"black",axis)
+	var crank_start:=axis*.037
+	_rod(drum,crank_start,crank_start+Vector3(.052,0,0),.005,"steel")
+	_cylinder(drum,crank_start+Vector3(.052,0,0),.010,.009,"edge",axis)
+	# The feed tower leaves the rear rim tangentially and moves with the drum.
+	_rod(drum,Vector3(0,.040,.065),Vector3(0,.130,.037),.021,"black",8)
+	_box(drum,Vector3(0,.075,.053),Vector3(.046,.025,.032),"edge")
+
 	_sights(root,-.4,.096,-.14); muzzle=Vector3(0,.078,-.415)
 
 func _hand_mortar() -> void:
@@ -891,3 +901,37 @@ func _fire_siphon() -> void:
 	_ring(root,Vector3(0,.08,-.625),.031,.004,"copper")
 	_sights(root,-.60,.11,-.10)
 	muzzle=Vector3(0,.08,-.67)
+
+static func volley_muzzles() -> Array[Vector3]:
+	var points: Array[Vector3]=[Vector3(0,.075,-.915)]
+	for i in 6:
+		var angle:=TAU*i/6.0
+		points.append(Vector3(sin(angle)*.057,.075+cos(angle)*.057,-.915))
+	return points
+
+func _volley_gun() -> void:
+	action="muzzle"
+	_stock(-.25)
+	# Seven individually hollow barrels: central bore and six surrounding it.
+	for tip: Vector3 in volley_muzzles():
+		_barrel(root,-.065,-.90,tip.y,.029,tip.x,40,"steel")
+	for z in [-.12,-.68]: _ring(root,Vector3(0,.075,z),.087,.003,"black")
+	_box(root,Vector3(.087,.043,-.028),Vector3(.014,.065,.16),"silver")
+	_engrave(root,.095,.043,-.028,.065)
+	for z in [-.078,.025]: _screw(root,Vector3(.097,.043,z),.006)
+	_box(root,Vector3(.103,.078,-.065),Vector3(.034,.018,.039),"brass")
+	var frizzen:=_node("frizzen",Vector3(.109,.083,-.083))
+	_box(frizzen,Vector3(0,.028,0),Vector3(.017,.061,.014),"steel",-.15)
+	_hammer(root,Vector3(.095,.060,.025),true)
+	_guard(root,Vector3(0,-.047,.012),.046)
+	for side in [-1.,1.]:
+		for row in 9:
+			_rod(root,Vector3(side*.032,-.018,.030+row*.007),Vector3(side*.032,.020,.047+row*.007),.0008,"black",5)
+	var ramrod:=_node("ramrod",Vector3(0,-.024,-.46))
+	_cylinder(ramrod,Vector3.ZERO,.76,.0055,"steel",Vector3.FORWARD)
+	_cylinder(ramrod,Vector3(0,0,-.386),.022,.010,"edge",Vector3.FORWARD)
+	var powder:=_node("powder",Vector3(.035,.20,-.90))
+	_cylinder(powder,Vector3.ZERO,.11,.025,"brass",Vector3.UP)
+	powder.visible=false
+	_sights(root,-.90,.163,-.105)
+	muzzle=volley_muzzles()[0]
