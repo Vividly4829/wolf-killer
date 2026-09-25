@@ -3,6 +3,8 @@ extends Node
 const Gunshots = preload("res://scripts/gunshot_bank.gd")
 var gun_voices: Array[AudioStreamPlayer] = []
 var gun_spatial: Array[AudioStreamPlayer3D] = []
+static var last_angel_arrival_ms := -10000
+var angel_choir: AudioStreamPlayer
 var gun_index := 0
 var gun_spatial_index := 0
 var last_gun_variant: Dictionary = {}
@@ -340,3 +342,15 @@ func _process(delta: float) -> void:
 	tension = move_toward(tension,1.0 if alert else 0.0,delta*.12)
 	score[0].volume_db = lerpf(-20,-28,tension)
 	score[1].volume_db = linear_to_db(lerpf(.001,.09,tension))
+
+func play_angel_arrival() -> void:
+	if silent: return
+	# Local split-screen worlds share speakers. Do not layer the same choir.
+	var now:=Time.get_ticks_msec()
+	if now-last_angel_arrival_ms<1500: return
+	last_angel_arrival_ms=now
+	if not is_instance_valid(angel_choir):
+		angel_choir=AudioStreamPlayer.new(); add_child(angel_choir)
+		angel_choir.stream=preload("res://assets/audio/angel_hallelujah.wav")
+		angel_choir.volume_db=-5.0
+	angel_choir.play()

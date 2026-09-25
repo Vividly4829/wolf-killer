@@ -1,4 +1,6 @@
 extends Node
+const ANGEL_DISTANCE := 200.0
+const ANGEL_MESSAGE := "Heaven has reviewed your rituals. Your punishment is out for delivery."
 var game: Node3D
 var sacrifices: Dictionary={}
 var soul_cost:=0
@@ -10,11 +12,14 @@ func sacrifice_completed(peer: int) -> void:
 	if int(sacrifices[peer])%5!=0: return
 	var hunter: Node3D=game.player if peer==1 else game.coop.avatars.get(peer)
 	if not is_instance_valid(hunter): return
-	var message:="You have provoked the forces of good"
-	game.show_notice(message,8)
+	var message:=ANGEL_MESSAGE
+	game.show_notice(message,10)
+	game.sounds.play_angel_arrival()
 	if game.coop.active: game.coop.send_all("supernatural_notice",[message])
+	var arrival_angle:=randf()*TAU
 	for i in 3:
-		var angel=spawn("angel",hunter.position+Vector3(cos(i*TAU/3)*14,5,sin(i*TAU/3)*14))
+		var angle:=arrival_angle+(i-1)*.10
+		var angel=spawn("angel",hunter.position+Vector3(cos(angle)*ANGEL_DISTANCE,18,sin(angle)*ANGEL_DISTANCE))
 		angel.marked_peer=peer
 func spawn(species: String,point: Vector3) -> Node3D:
 	var actor=preload("res://scripts/supernatural_actor.gd").new()

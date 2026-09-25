@@ -876,7 +876,9 @@ func soul_changed(cost: int) -> void:
 	game.supernatural.soul_cost=cost
 	game.health=minf(game.health,game.maximum_health())
 @rpc("authority","reliable")
-func supernatural_notice(message: String) -> void: game.show_notice(message,8)
+func supernatural_notice(message: String) -> void:
+	game.show_notice(message,10)
+	game.sounds.play_angel_arrival()
 
 @rpc("any_peer","reliable")
 func boat_interact() -> void:

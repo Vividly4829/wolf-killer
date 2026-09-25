@@ -12,11 +12,13 @@ func run() -> void:
 	var host=session.games[0]; var guest=session.games[1]; var guards=host.guardians
 	host.campaign.set_process(false); guest.campaign.set_process(false)
 	check(guards.cats.size()==2 and guest.guardians.cats.size()==2,"two guardians appear on wave ten in both worlds")
-	check(guards.cats[0].max_hp>2*143 and guards.cats[0].max_hp<2.3*143,"health slightly exceeds two average wave ten wolves")
+	check(guards.cats[0].max_hp==150 and guards.cats[1].max_hp==150,"both cats have 150 HP")
 	check(guards.outside_buildings(guards.cats[0].home) and guards.outside_buildings(guards.cats[1].home),"guardians spawn outdoors away from roofs and walls")
 	check(guards.cats[0].home.distance_to(guards.cats[1].home)>2,"separate outdoor home positions")
 	host.level=9; guards.reset_round(); check(guards.cats.is_empty(),"no cats before wave ten")
 	host.level=10; guards.reset_round()
+	check(guards.cats[0].name=="Tijgertje" and guards.cats[1].name=="Sirius","cats have their personal names")
+	check(guards.cats[0].node.scale.is_equal_approx(Vector3.ONE*.6) and guest.guardians.cats[1].node.scale.is_equal_approx(Vector3.ONE*.6),"local and replicated models are forty percent smaller")
 	var cat: Dictionary=guards.cats[0]
 	host.player.position=cat.p+Vector3(1,0,0); host.health=100
 	check(guards.request(1),"host can mount")
@@ -35,7 +37,7 @@ func run() -> void:
 	guards.control(1,Vector2(0,-1),0)
 	for i in 12: guards._physics_process(.016)
 	check(cat.p.distance_to(before)>.05,"riding input moves cat on navigation")
-	check(host.player.position.y>cat.p.y+1,"rider raised above saddle")
+	check(is_equal_approx(host.player.position.y,cat.p.y+.75),"rider follows the resized saddle")
 	guards.request(1); guest.coop.send_to(1,"cat_interact",[])
 	check(guards.occupied(1)<0 and guards.occupied(2)<0,"both players dismount")
 	check(guest.guardians.occupied(2)<0 and guest.player.position.y<other.p.y+1,"guest exits at ground level")

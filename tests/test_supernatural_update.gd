@@ -55,6 +55,10 @@ func run() -> void:
 	game.supernatural.sacrifice_completed(1)
 	var angels: Array=game.nodes_in_group("campaign_threats").filter(func(a): return a.species=="angel")
 	check(angels.size()==3,"fifth sacrifice summons three angels")
+	for angel in angels:
+		var offset: Vector3=angel.position-game.player.position
+		check(absf(Vector2(offset.x,offset.z).length()-200)<.1 and offset.y>=18,"angel arrives 200 metres away and airborne")
+	check(ResourceLoader.load("res://assets/audio/angel_hallelujah.wav").get_length()>9,"recorded choir announcement is available")
 	var count: int=game.rituals.count("angel"); angels[0].damage(1000,true)
 	check(game.rituals.count("angel")==count+1,"angel kill grants one permanent stack")
 	angels[0].damage(1000,true); check(game.rituals.count("angel")==count+1,"dead angel cannot award twice")

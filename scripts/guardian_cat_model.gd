@@ -1,5 +1,6 @@
 extends Node3D
 ## Long-haired silver/brown tabbies: broad muzzle, cream ruff, tufted ears and ringed plume.
+const MODEL_SCALE := .60
 var variant := 0
 var moving := 0.0
 var attacking := 0.0
@@ -20,6 +21,7 @@ func strand(parent: Node3D,a: Vector3,b: Vector3,width: float,mat: Material) -> 
 	var node:=MeshInstance3D.new(); var mesh:=CylinderMesh.new(); mesh.top_radius=width*.15; mesh.bottom_radius=width; mesh.height=a.distance_to(b); mesh.radial_segments=7
 	node.mesh=mesh; node.material_override=mat; node.position=(a+b)*.5; node.quaternion=Quaternion(Vector3.UP,(b-a).normalized()); parent.add_child(node)
 func _ready() -> void:
+	scale=Vector3.ONE*MODEL_SCALE
 	var shader:=Shader.new()
 	shader.code="""shader_type spatial;
 varying vec3 coat_point;
@@ -35,11 +37,11 @@ void fragment(){
 }
 """
 	fur=ShaderMaterial.new(); fur.shader=shader
-	fur.set_shader_parameter("light_coat",Color("a69c83") if variant==0 else Color("827c72"))
-	fur.set_shader_parameter("dark_coat",Color("40352c") if variant==0 else Color("292b2a"))
-	var fluff:=material(Color("9c927c") if variant==0 else Color("77756d"))
-	var ring:=material(Color("51483c") if variant==0 else Color("41433e"))
-	var cream:=material(Color("dbd5ba")); var dark:=material(Color("27231f")); var pink:=material(Color("956e69")); var leather:=material(Color("49352b")); var brass:=material(Color("b19a5b"),.55)
+	fur.set_shader_parameter("light_coat",Color("a69c83") if variant==0 else Color("393b3a"))
+	fur.set_shader_parameter("dark_coat",Color("40352c") if variant==0 else Color("111514"))
+	var fluff:=material(Color("9c927c") if variant==0 else Color("343937"))
+	var ring:=material(Color("51483c") if variant==0 else Color("161c1a"))
+	var cream:=material(Color("dbd5ba") if variant==0 else Color("a4a49a")); var dark:=material(Color("27231f")); var pink:=material(Color("956e69")); var leather:=material(Color("49352b")); var brass:=material(Color("b19a5b"),.55)
 	body=Node3D.new(); add_child(body)
 	oval(body,Vector3(0,1.26,-.25),Vector3(.57,.63,1.10),fur)
 	oval(body,Vector3(0,1.42,.50),Vector3(.68,.75,.66),fur)

@@ -1,5 +1,7 @@
 extends Node3D
 ## Host-owned cabin guardians; guests receive state and submit riding input only.
+const CAT_NAMES := ["Tijgertje", "Sirius"]
+const CAT_HEALTH := 150.0
 const GUARD_RADIUS := 32.0
 const LEASH_RADIUS := 42.0
 const SWIPE_DAMAGE := 32.0
@@ -34,9 +36,9 @@ func outside_buildings(point: Vector3) -> bool:
 			if Geometry2D.get_closest_point_to_segment(p,cabin.outline[i],cabin.outline[(i+1)%cabin.outline.size()]).distance_to(p)<1.5: return false
 	return true
 func body_clear(point: Vector3) -> bool:
-	var shape:=CapsuleShape3D.new(); shape.radius=.63; shape.height=3.1
+	var shape:=CapsuleShape3D.new(); shape.radius=.42; shape.height=2.55
 	var query:=PhysicsShapeQueryParameters3D.new(); query.shape=shape; query.collision_mask=1
-	query.transform=Transform3D(Basis.IDENTITY,point+Vector3.UP*1.65)
+	query.transform=Transform3D(Basis.IDENTITY,point+Vector3.UP*1.40)
 	return get_world_3d().direct_space_state.intersect_shape(query,1).is_empty()
 func clear() -> void:
 	for cat in cats: cat.node.queue_free()
@@ -49,12 +51,12 @@ func reset_round() -> void:
 		if game.coop.active: game.coop.send_all("cat_state",[[]])
 		return
 	for i in 2:
-		var hp: float=(80+minf(maxi(0,game.level-1)*7,100))*2.15
+		var hp: float=CAT_HEALTH
 		add_cat(i,home_point(i),hp)
 	if game.coop.active: game.coop.send_all("cat_state",[snapshot()])
 func add_cat(index: int,p: Vector3,hp: float) -> void:
 	var model:=Model.new(); model.variant=index; add_child(model); model.position=p
-	cats.append({"node":model,"p":p,"home":p,"yaw":0.0,"hp":hp,"max_hp":hp,"rider":0,"axis":Vector2.ZERO,"heading":0.0,"input_at":-1.0,"speed":0.0,"cooldown":0.0,"target":null,"think":0.0,"search":null,"route":PackedVector3Array(),"route_at":0.0,"swipe":0.0})
+	cats.append({"name":CAT_NAMES[index],"node":model,"p":p,"home":p,"yaw":0.0,"hp":hp,"max_hp":hp,"rider":0,"axis":Vector2.ZERO,"heading":0.0,"input_at":-1.0,"speed":0.0,"cooldown":0.0,"target":null,"think":0.0,"search":null,"route":PackedVector3Array(),"route_at":0.0,"swipe":0.0})
 func hostile(enemy: Node3D) -> bool:
 	if not is_instance_valid(enemy) or enemy.is_queued_for_deletion() or enemy.get("dead")==true or game.free_play: return false
 	if enemy is IslandWolf: return true
@@ -78,8 +80,8 @@ func prompt() -> String:
 	if i<0: return ""
 	var key: String="Y" if game.controller_device>=0 else "E"
 	var cat:=cats[i]
-	if cat.rider==local_id(): return "[ %s ] DISMOUNT / TABBY GUARDIAN / %d HP / %s"%[key,ceili(cat.hp),"Left stick to ride" if game.controller_device>=0 else "WASD to ride"]
-	return "TABBY GUARDIAN / ANOTHER PLAYER IS RIDING" if cat.rider>0 else "[ %s ] RIDE TABBY GUARDIAN / %d HP"%[key,ceili(cat.hp)]
+	if cat.rider==local_id(): return "[ %s ] DISMOUNT / %s / %d HP / %s"%[key,cat.name,ceili(cat.hp),"Left stick to ride" if game.controller_device>=0 else "WASD to ride"]
+	return "%s / ANOTHER PLAYER IS RIDING"%cat.name if cat.rider>0 else "[ %s ] RIDE %s / %d HP"%[key,cat.name,ceili(cat.hp)]
 func interact() -> bool:
 	if occupied(local_id())<0 and nearby(game.player.position)<0: return false
 	if game.coop.client(): game.coop.send_to(1,"cat_interact",[])
@@ -143,7 +145,7 @@ func place_riders() -> void:
 		if cat.rider<=0: continue
 		var actor: Node3D=game.player if cat.rider==local_id() else game.coop.avatars.get(cat.rider)
 		if is_instance_valid(actor):
-			actor.position=cat.node.position+Vector3(0,1.25,-.28).rotated(Vector3.UP,cat.yaw)
+			actor.position=cat.node.position+(Vector3(0,1.25,-.28)*Model.MODEL_SCALE).rotated(Vector3.UP,cat.yaw)
 			if actor!=game.player: actor.set_meta("cat_riding",true)
 func move_cat(cat: Dictionary,direction: Vector3,speed: float,delta: float) -> void:
 	var before: Vector3=cat.p
@@ -176,7 +178,7 @@ func hurt(cat: Dictionary,amount: float) -> void:
 	game.gore.blood_burst(cat.p+Vector3.UP,Vector3.UP,.4)
 	if cat.hp<=0:
 		dismount(cat); cat.node.fallen=true; cat.target=null
-		game.show_notice("A tabby guardian has fallen. It returns next round.",5)
+		game.show_notice("%s has fallen. They return next round."%cat.name,5)
 func defend_against(enemy: Node3D,delta: float) -> bool:
 	# Called by enemy AI after death/incapacitation checks; replaces its attack,
 	# rather than dealing a second invisible attack on top of the normal one.
