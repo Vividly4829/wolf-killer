@@ -6,6 +6,7 @@ func check(ok: bool,label: String) -> void:
 	if not ok: failures+=1
 func run() -> void:
 	var original=load("res://scripts/main.gd").new(); original.progress.save_path="user://cats_test_%d.cfg"%OS.get_process_id(); root.add_child(original)
+	original.unlock_start_options("WOLFMASTER")
 	original.menu_start_level=10; original.menu_start_money=777
 	var session=load("res://scripts/split_session.gd").new(); session.secondary_save_path="user://cats_guest_%d.cfg"%OS.get_process_id(); root.add_child(session)
 	await session.launch(original)

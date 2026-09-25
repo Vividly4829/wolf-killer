@@ -31,6 +31,7 @@ var previous_mode := ""
 var status := "Solo"
 var join_address := "127.0.0.1"
 var awaiting_spawn := false
+var paid_revive_pending := false
 var join_deadline := 0
 var connection_error := ""
 var requested_host := false
@@ -117,6 +118,7 @@ func join_session(address: String) -> void:
 	multiplayer.multiplayer_peer = peer
 	active = true
 func leave() -> void:
+	paid_revive_pending=false
 	if game.guardians: game.guardians.release_all()
 	if game.boats: game.boats.release_all()
 	if internet: internet.stop()
@@ -215,6 +217,8 @@ func wake_player(wave: int,season: int,hour: int,blood: bool,spawn: Vector3,yaw:
 	local_spawn = spawn
 	local_yaw = yaw
 	game.level = wave
+	game.progress.resume_level=wave
+	game.progress.resume_players=game.split_session.player_count if is_instance_valid(game.split_session) else 1
 	game.affliction.psychedelic = false
 	if not recovery:
 		game.affliction.infected_wave = -1
@@ -701,6 +705,7 @@ func check_team_wipe() -> void:
 func team_failed() -> void:
 	game.death_level = game.level
 	game.level = 1
+	game.progress.resume_level=0; game.progress.save_progress()
 	game.end_wolf_struggle(false)
 	game.set_mode("dead")
 
@@ -950,3 +955,50 @@ func cat_control(axis: Vector2,heading: float) -> void:
 func cat_state(data: Array) -> void: game.guardians.apply_snapshot(data)
 @rpc("authority","reliable")
 func cat_exit(point: Vector3) -> void: game.guardians.settle_rider(point)
+
+func buy_revive() -> void:
+	if paid_revive_pending or game.progress.money<1000 or game.health>0 or game.mode not in ["dead","waiting"]: return
+	if not client():
+		game.progress.money-=1000
+		revive_revision+=1
+		resume_paid_team(game.death_level if game.mode=="dead" else game.level)
+		game.finish_paid_revive(spawn_point(1))
+		if is_instance_valid(local_area): local_area.collision_layer=2
+	else:
+		paid_revive_pending=true
+		send_to(1,"request_paid_revive",[generation,revive_revision])
+
+func resume_paid_team(wave: int) -> void:
+	if active: send_all("paid_team_resumed",[wave],true)
+
+@rpc("authority","call_local","reliable")
+func paid_team_resumed(wave: int) -> void:
+	if game.mode=="dead":
+		game.level=wave; game.set_mode("waiting")
+
+@rpc("any_peer","reliable")
+func request_paid_revive(epoch: int,life: int) -> void:
+	if not server(): return
+	var id:=sender_id()
+	var avatar: Node3D=avatars.get(id)
+	if epoch!=generation or not is_instance_valid(avatar) or avatar.health>0 or life!=int(avatar.get_meta("revive_revision",0)) or game.mode not in ["dead","waiting","playing","paused","shop"]:
+		send_to(id,"paid_revive_declined",[]); return
+	resume_paid_team(game.death_level if game.mode=="dead" else game.level)
+	release_remote_maul(id)
+	var revision:=life+1
+	avatar.set_meta("revive_revision",revision); avatar.health=10
+	avatar.position=spawn_point(id); avatar.visible=true; avatar.area.collision_layer=2
+	send_to(id,"paid_revive_accepted",[avatar.position,epoch,revision])
+
+@rpc("authority","reliable")
+func paid_revive_declined() -> void:
+	paid_revive_pending=false
+
+@rpc("authority","reliable")
+func paid_revive_accepted(point: Vector3,epoch: int,revision: int) -> void:
+	if not paid_revive_pending or epoch!=generation or revision<=revive_revision: return
+	paid_revive_pending=false
+	game.progress.money-=1000
+	revive_revision=revision
+	game.finish_paid_revive(point)
+	if is_instance_valid(local_area): local_area.collision_layer=2

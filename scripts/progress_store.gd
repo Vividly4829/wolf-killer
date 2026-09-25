@@ -3,7 +3,7 @@ class_name IslandProgress
 const WeaponCatalog = preload("res://scripts/weapon_catalog.gd")
 
 var transient := false
-const STARTING_CREDITS := 350
+const STARTING_CREDITS := 0
 var money: int = STARTING_CREDITS
 var owned: Array[int] = [0]
 var stowed: Array[int] = []
@@ -11,6 +11,8 @@ var best_level: int = 1
 var total_kills: int = 0
 var save_path: String = "user://progress.cfg"
 var last_save_ok: bool = true
+var resume_level := 0
+var resume_players := 1
 
 func load_progress() -> void:
 	var config := ConfigFile.new()
@@ -19,6 +21,8 @@ func load_progress() -> void:
 		result = config.load(save_path + ".bak")
 	if result != OK:
 		return
+	resume_level=clampi(int(config.get_value("progress","resume_level",0)),0,30)
+	resume_players=clampi(int(config.get_value("progress","resume_players",1)),1,4)
 	money = clampi(int(config.get_value("progress", "money", STARTING_CREDITS)), 0, 2000000000)
 	best_level = maxi(1, int(config.get_value("progress", "best_level", 1)))
 	total_kills = maxi(0, int(config.get_value("progress", "total_kills", 0)))
@@ -38,16 +42,13 @@ func load_progress() -> void:
 	for value in config.get_value("progress","stowed",[]):
 		if value is int and owned.has(value) and not stowed.has(value): stowed.append(value)
 	if owned.all(func(index): return stowed.has(index)): stowed.erase(0)
-	# One-time starter allowance for existing solo and local-controller profiles.
-	# Preserve earned balances above 350; spending/death never grants it again.
-	if not config.get_value("progress","starter_allowance",false):
-		money = maxi(money,STARTING_CREDITS)
-		save_progress()
 
 func save_progress() -> bool:
 	if transient: return true
 	var config := ConfigFile.new()
-	config.set_value("progress", "version", 2)
+	config.set_value("progress", "version", 3)
+	config.set_value("progress","resume_level",resume_level)
+	config.set_value("progress","resume_players",resume_players)
 	config.set_value("progress", "money", money)
 	config.set_value("progress", "starter_allowance", true)
 	config.set_value("progress", "owned", owned)

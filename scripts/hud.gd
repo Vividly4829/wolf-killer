@@ -248,6 +248,7 @@ func refresh_panel() -> void:
 		_label(overlay,"WAITING FOR YOUR TEAM",Vector2(370,250),30)
 		_label(overlay,"A teammate can revive you nearby with E / Y (10 HP).\nOr finish the objective to respawn at the cabin next round.\nMoney is kept; lost weapons can be replaced.",Vector2(370,310),18,PAPER)
 		_button(overlay,"LEAVE SESSION",Rect2(460,410,360,45),game.return_to_menu)
+		_paid_revive_button(Vector2(460,492))
 	elif game.mode == "victory":
 		_victory()
 	elif game.mode == "dead":
@@ -278,22 +279,35 @@ func _menu() -> void:
 	_label(overlay, "The woods are empty. The pack is hungry.\nLeave the cabin to begin the hunt.\nOne shot. Stand your ground to reload.", Vector2(50, 354), 17, PAPER)
 	_block(overlay,Rect2(470,208,430,220),Color(.035,.075,.09,.94))
 	_label(overlay,"NEW EXPEDITION",Vector2(490,222),20,ACCENT)
-	_label(overlay,"STARTING LEVEL",Vector2(490,263),12,MUTED)
-	_label(overlay,"STARTING CREDITS",Vector2(664,263),12,MUTED)
-	var start_level:=SpinBox.new()
-	start_level.name="StartingLevel"; start_level.min_value=1; start_level.max_value=30; start_level.step=1
-	start_level.value=game.menu_start_level; start_level.position=Vector2(490,286); start_level.size=Vector2(148,42)
-	start_level.add_theme_font_size_override("font_size",20); overlay.add_child(start_level)
-	start_level.value_changed.connect(func(value): game.menu_start_level=int(value))
-	start_level.get_line_edit().text_changed.connect(func(_text): start_level.set_meta("typed",true))
-	var start_money:=SpinBox.new()
-	start_money.name="StartingMoney"; start_money.min_value=0; start_money.max_value=2000000000; start_money.step=1
-	start_money.value=game.progress.money if game.menu_start_money<0 else game.menu_start_money
-	start_money.position=Vector2(664,286); start_money.size=Vector2(216,42)
-	start_money.add_theme_font_size_override("font_size",20); overlay.add_child(start_money)
-	start_money.value_changed.connect(func(value): game.menu_start_money=int(value))
-	start_money.get_line_edit().text_changed.connect(func(_text): start_money.set_meta("typed",true))
-	_label(overlay,"Type a value or use the arrows.\nCustom credits apply to all local players.\nDeath restarts at level 1; money stays.\nJoining online uses the host's level.",Vector2(490,340),13,MUTED)
+	if game.start_options_unlocked:
+		_label(overlay,"STARTING LEVEL",Vector2(490,263),12,MUTED)
+		_label(overlay,"STARTING CREDITS",Vector2(664,263),12,MUTED)
+		var start_level:=SpinBox.new()
+		start_level.name="StartingLevel"; start_level.min_value=1; start_level.max_value=30; start_level.step=1
+		start_level.value=game.menu_start_level; start_level.position=Vector2(490,286); start_level.size=Vector2(148,42)
+		start_level.add_theme_font_size_override("font_size",20); overlay.add_child(start_level)
+		start_level.value_changed.connect(func(value): game.menu_start_level=int(value))
+		start_level.get_line_edit().text_changed.connect(func(_text): start_level.set_meta("typed",true))
+		var start_money:=SpinBox.new()
+		start_money.name="StartingMoney"; start_money.min_value=0; start_money.max_value=2000000000; start_money.step=1
+		start_money.value=game.progress.money if game.menu_start_money<0 else game.menu_start_money
+		start_money.position=Vector2(664,286); start_money.size=Vector2(216,42)
+		start_money.add_theme_font_size_override("font_size",20); overlay.add_child(start_money)
+		start_money.value_changed.connect(func(value): game.menu_start_money=int(value))
+		start_money.get_line_edit().text_changed.connect(func(_text): start_money.set_meta("typed",true))
+		_label(overlay,"Type a value or use the arrows.\nCustom credits apply to all local players.\nDeath restarts at level 1; money stays.\nJoining online uses the host's level.",Vector2(490,340),13,MUTED)
+	else:
+		_label(overlay,"Level 1 / saved credits: %d"%game.progress.money,Vector2(490,265),17,PAPER)
+		_label(overlay,"New players start with 0 credits.\nEnter the special code to change starting values.",Vector2(490,303),13,MUTED)
+		var code:=LineEdit.new(); code.name="StartCode"; code.secret=true
+		code.placeholder_text="Unlock code"; code.position=Vector2(490,351); code.size=Vector2(230,40); overlay.add_child(code)
+		var unlock:=func():
+			if not game.unlock_start_options(code.text): code.text=""; code.placeholder_text="Incorrect code"
+		code.text_submitted.connect(func(_text): unlock.call())
+		_button(overlay,"UNLOCK",Rect2(730,351,145,40),unlock)
+	if game.progress.resume_level>0:
+		_button(overlay,"CONTINUE / LEVEL %02d"%game.progress.resume_level,Rect2(50,583,390,48),game.continue_run)
+
 	_button(overlay, "WAKE IN THE CABIN    →", Rect2(50, 453, 390, 55), game.start_from_menu, true)
 	_button(overlay, "FREE PLAY / ALL WEAPONS", Rect2(50, 518, 390, 48), game.start_free_play)
 	_button(overlay, "WEAPON STATS & PRICES", Rect2(935, 453, 300, 48), open_weapon_stats)
@@ -310,8 +324,8 @@ func _menu() -> void:
 		_button(overlay,"%d PLAYERS"%count,Rect2(470+(count-2)*132,612,126,40),func(): game.start_split(count))
 	_label(overlay,"LOCAL CO-OP: P1 keyboard/mouse · P2–4 separate controllers",Vector2(470,661),13,MUTED)
 	_label(overlay,"4 hunters · friendly fire · experimental free relay\nInvite copied when ready; paste here to join.\n"+game.coop.status,Vector2(470,565),13,MUTED)
-	_label(overlay, "BANKED  %d CR     /     BEST  LEVEL %02d" % [game.progress.money, game.progress.best_level], Vector2(50, 596), 14, ACCENT)
-	_label(overlay, "Death costs your weapons. Your money stays.\nMouse to aim  ·  WASD to move  ·  Left click to shoot", Vector2(50, 630), 13, MUTED)
+	_label(overlay, "BANKED  %d CR     /     BEST  LEVEL %02d" % [game.progress.money, game.progress.best_level], Vector2(50, 639 if game.progress.resume_level>0 else 596), 14, ACCENT)
+	_label(overlay, "Death costs your weapons. Your money stays.\nMouse to aim  ·  WASD to move  ·  Left click to shoot", Vector2(50, 669 if game.progress.resume_level>0 else 630), 13, MUTED)
 	_block(overlay, Rect2(966, 595, 265, 83), Color(0.04, 0.10, 0.12, 0.86))
 	_label(overlay, "SHELTER BEFORE THE STORM", Vector2(985, 614), 12, ACCENT)
 	_label(overlay, "Bremnesvegen 96  /  Autumn survival", Vector2(985, 639), 12, PAPER)
@@ -490,11 +504,14 @@ func _select_shop_weapon(index: int) -> void:
 
 func commit_start_options() -> void:
 	if game.mode!="menu": return
+	if not game.start_options_unlocked:
+		game.menu_start_level=1; game.menu_start_money=-1
+		return
 	var money=overlay.get_node_or_null("StartingMoney")
 	var level=overlay.get_node_or_null("StartingLevel")
 	if money:
 		if money.get_meta("typed",false): money.apply()
-		if game.menu_start_money<0: game.menu_start_money=int(money.value)
+		if money.get_meta("typed",false): game.menu_start_money=int(money.value)
 	if level:
 		if level.get_meta("typed",false): level.apply()
 
@@ -619,8 +636,11 @@ func _defeat() -> void:
 	_label(overlay, "Purchased weapons lost. Money kept.\nRestart at level 1 with the musket.", Vector2(488, 367), 16, PAPER)
 	_button(overlay, "TRY AGAIN  /  LEVEL 01", Rect2(450, 453, 380, 56), game.start_run, true)
 	_button(overlay, "MAIN MENU", Rect2(450, 530, 380, 45), game.return_to_menu)
+	_paid_revive_button(Vector2(450,592))
 
 func _process(_delta: float) -> void:
+	var revive_button=overlay.get_node_or_null("PaidRevive")
+	if revive_button: revive_button.disabled=game.progress.money<1000 or game.coop.paid_revive_pending
 	if game.mode=="connecting":
 		var detail=overlay.get_node_or_null("ConnectionDetail")
 		if detail: detail.text=game.coop.status
@@ -891,3 +911,8 @@ func _weapon_stats() -> void:
 	_label(overlay, "PAGE %d / %d · D-pad ← / →" % [stats_page + 1, ceili(indices.size() / 7.0)], Vector2(250, 674), 14, ACCENT)
 	_button(overlay, "NEXT →", Rect2(560, 665, 160, 38), func(): step_stats_page(1))
 	_button(overlay, "BACK / ESC / CONTROLLER B", Rect2(880, 665, 355, 38), func(): game.set_mode("menu"))
+
+func _paid_revive_button(point: Vector2) -> void:
+	var button:=_button(overlay,"REVIVE / 1,000 CR / 10 HP"+(" / X" if game.controller_device>=0 else ""),Rect2(point,Vector2(380,45)),game.paid_revive)
+	button.name="PaidRevive"
+	button.disabled=game.progress.money<1000

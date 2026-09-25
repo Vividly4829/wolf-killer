@@ -456,6 +456,10 @@ func controller_button(button: int) -> void:
 		if button==JOY_BUTTON_Y: game.return_to_menu()
 		elif game.mode=="connection_error" and button==JOY_BUTTON_A: game.coop.retry_connection()
 		return
+	if game.mode in ["dead","waiting"] and button==JOY_BUTTON_X:
+		game.paid_revive(); return
+	if game.mode=="menu" and button==JOY_BUTTON_X:
+		game.continue_run(); return
 	if game.mode in ["dead","victory"]:
 		if button==JOY_BUTTON_A: game.start_run()
 		return

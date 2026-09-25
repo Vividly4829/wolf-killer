@@ -24,6 +24,7 @@ func run() -> void:
 	var original=load("res://scripts/main.gd").new()
 	original.progress.save_path="user://split_test_%d.cfg"%OS.get_process_id()
 	root.add_child(original)
+	original.unlock_start_options("WOLFMASTER")
 	original.menu_start_money=1234
 	original.player.use_input_device(0) # Entering from a controller-operated menu must not give P1 the pad.
 	var session=load("res://scripts/split_session.gd").new()

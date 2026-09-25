@@ -36,6 +36,8 @@ var campaign_progress: RefCounted
 var free_respawn := 0.0
 var mode: String = "menu"
 var level: int = 1
+var start_options_unlocked := false
+const START_OPTIONS_CODE := "WOLFMASTER"
 var menu_start_level := 1
 var menu_start_money := -1 # Unchanged means preserve the saved wallet.
 var session_start_money := -1
@@ -148,6 +150,8 @@ func _clear_projectiles() -> void:
 		bolt.queue_free()
 
 func _ready() -> void:
+	add_to_group("saved_games")
+	get_tree().auto_accept_quit=false
 	name = "WolfIsland"
 	get_tree().set_multiplayer(SceneMultiplayer.new(),get_path())
 	# Prepare immutable model resources during loading, before browsing or combat.
@@ -354,7 +358,7 @@ func start_from_menu() -> void:
 	hud.commit_start_options()
 	start_run(false,true)
 
-func start_run(sandbox: bool = false, use_menu_settings: bool = false) -> void:
+func start_run(sandbox: bool = false, use_menu_settings: bool = false, resumed_level: int = 0) -> void:
 	coop.reset_round_earnings()
 	combat_fx.shots.clear()
 	restore_campaign()
@@ -390,6 +394,8 @@ func start_run(sandbox: bool = false, use_menu_settings: bool = false) -> void:
 	run_bites = 0
 	struggle_grace = 0.0
 	level = clampi(menu_start_level,1,30) if use_menu_settings and not sandbox else 1
+	if resumed_level>0: level=clampi(resumed_level,1,30)
+	session_start_money=-1
 	set_meta("applying_start_wallet",use_menu_settings and not sandbox and menu_start_money>=0)
 	if use_menu_settings and not sandbox and menu_start_money>=0:
 		session_start_money=clampi(menu_start_money,0,2000000000)
@@ -424,6 +430,7 @@ func start_run(sandbox: bool = false, use_menu_settings: bool = false) -> void:
 	_update_pursuit()
 	started = true
 	set_mode("playing")
+	save_checkpoint()
 	if not coop.client(): world.houses.reroll()
 	dialogue_left = 6.0
 	show_notice("Leave the cabin to begin the hunt.", 8)
@@ -532,9 +539,11 @@ func complete_wave() -> void:
 	campaign.running=false
 	if level>=30:
 		campaign.finished=true
+		progress.resume_level=0; progress.save_progress()
 		set_mode("victory")
 		return
 	level+=1
+	save_checkpoint()
 	intermission=true
 	wave_countdown=0
 	campaign.clear_round()
@@ -1006,6 +1015,7 @@ func _apply_health_damage(amount: float, impact: bool = true) -> void:
 		player.set_weapon(current_weapon)
 		_sync_weapon_visual()
 		_clear_projectiles()
+		progress.resume_level=0 if not coop.active else level
 		progress.save_progress()
 		set_mode("waiting" if coop.active else "dead")
 		if coop.active: coop.local_down()
@@ -1251,6 +1261,7 @@ func show_notice(message: String, duration: float = 3) -> void:
 	notice_left = duration
 
 func return_to_menu() -> void:
+	save_checkpoint()
 	if campaign: campaign.running=false
 	if is_instance_valid(split_session):
 		split_session.close.call_deferred()
@@ -1263,10 +1274,48 @@ func return_to_menu() -> void:
 	menu_camera.current = true
 	set_mode("menu")
 
+func save_checkpoint() -> void:
+	if free_play or progress.transient: return
+	if started and mode not in ["dead","victory","menu","loading"]:
+		progress.resume_level=clampi(level,1,30)
+		progress.resume_players=split_session.player_count if is_instance_valid(split_session) else 1
+	progress.save_progress()
+
+func continue_run() -> void:
+	if mode!="menu" or progress.resume_level<=0: return
+	if progress.resume_players>1:
+		start_split(progress.resume_players,true)
+	else:
+		coop.leave()
+		start_run(false,false,progress.resume_level)
+
+func unlock_start_options(code: String) -> bool:
+	if code.strip_edges().to_upper()!=START_OPTIONS_CODE: return false
+	start_options_unlocked=true
+	hud.refresh_panel()
+	return true
+
 func quit_game() -> void:
-	if not OS.get_cmdline_user_args().has("--qa"):
-		progress.save_progress()
+	for game in get_tree().get_nodes_in_group("saved_games"): game.save_checkpoint()
 	get_tree().quit()
+
+func paid_revive() -> void:
+	if mode not in ["dead","waiting"] or health>0 or progress.money<1000: return
+	if coop.active:
+		coop.buy_revive()
+		return
+	progress.money-=1000
+	level=death_level
+	finish_paid_revive(world.bed_wake_position)
+
+func finish_paid_revive(point: Vector3) -> void:
+	end_wolf_struggle(false)
+	player.clear_injuries(); player.reset_at(point)
+	health=10; bandage_left=0; reload_left=0; struggle_grace=3.0
+	_replenish_ammunition()
+	set_mode("playing")
+	save_checkpoint()
+	show_notice("Revived / 10 HP / 1,000 credits paid",4)
 
 func _run_visual_qa() -> void:
 	await get_tree().create_timer(2.0).timeout
@@ -1410,10 +1459,10 @@ func beam_effect(a: Vector3,b: Vector3) -> void:
 		fade.tween_interval(.12); fade.tween_property(material,"albedo_color:a",0.0,.23)
 	get_tree().create_timer(.36).timeout.connect(effect.queue_free)
 
-func start_split(count: int = 2) -> void:
+func start_split(count: int = 2, resume: bool = false) -> void:
 	var session = load("res://scripts/split_session.gd").new()
 	get_tree().root.add_child(session)
-	session.launch.call_deferred(self,count)
+	session.launch.call_deferred(self,count,resume)
 
 func radar_dangerous(animal: Node3D) -> bool:
 	return animal is IslandWolf or str(animal.get("species")) in ["moose","bear","raider","legionary","musketeer","angel","devil"] or animal.get("alerted")==true

@@ -8,7 +8,7 @@ var secondary_save_path := "user://progress_local_controller.cfg"
 const HUD_SIZE := Vector2i(1280,360)
 var player_count := 2
 var devices: Array[int] = []
-func launch(original: Node,count: int = 2) -> void:
+func launch(original: Node,count: int = 2,resume: bool = false) -> void:
 	player_count=clampi(count,2,4)
 	devices.assign(Input.get_connected_joypads().slice(0,player_count-1))
 	while devices.size()<player_count-1:
@@ -21,7 +21,9 @@ func launch(original: Node,count: int = 2) -> void:
 	original.hud.commit_start_options()
 	var profile = original.progress
 	var start_level: int=original.menu_start_level
-	var start_money: int=original.menu_start_money
+	var start_money: int=-1 if resume else original.menu_start_money
+	var unlocked: bool=original.start_options_unlocked
+	var saved_level: int=profile.resume_level if resume else 0
 	original.coop.leave()
 	get_tree().set_multiplayer(null,original.get_path())
 	original.queue_free()
@@ -47,6 +49,7 @@ func launch(original: Node,count: int = 2) -> void:
 		game.split_session=self
 		game.mode="loading"
 		game.menu_start_level=start_level; game.menu_start_money=start_money
+		game.start_options_unlocked=unlocked
 		if index==0: game.progress=profile
 		else: game.progress.save_path=secondary_save_path if index==1 else secondary_save_path.get_basename()+"_p%d.cfg"%(index+1)
 		viewport.add_child(game); games.append(game)
@@ -61,8 +64,8 @@ func launch(original: Node,count: int = 2) -> void:
 	for index in player_count: games[index].coop.setup_local(peers,index+1)
 	for index in range(1,player_count):
 		games[0].coop._peer_connected(index+1)
-		games[index].start_from_menu()
-	games[0].start_from_menu()
+		games[index].start_run(false,not resume,saved_level)
+	games[0].start_run(false,not resume,saved_level)
 	games[0].coop._process(.1)
 	_process(0) # Establish view rectangles before accepting the first mouse event.
 	views[0].notify_mouse_entered()
@@ -112,7 +115,7 @@ func close() -> void:
 	if closing: return
 	closing=true
 	for game in games:
-		game.progress.save_progress(); game.coop.leave()
+		game.save_checkpoint(); game.coop.leave()
 		get_tree().set_multiplayer(null,game.get_path())
 	var menu=load("res://scripts/main.gd").new()
 	if not games.is_empty(): menu.progress=games[0].progress

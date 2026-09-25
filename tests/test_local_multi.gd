@@ -11,6 +11,7 @@ func run() -> void:
 	var original=load("res://scripts/main.gd").new()
 	original.progress.save_path="user://four_test_%d.cfg"%OS.get_process_id()
 	root.add_child(original)
+	original.unlock_start_options("WOLFMASTER")
 	original.menu_start_money=987
 	var session=load("res://scripts/split_session.gd").new()
 	session.secondary_save_path="user://four_guest_%d.cfg"%OS.get_process_id()
