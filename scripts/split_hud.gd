@@ -8,19 +8,23 @@ func _ready() -> void:
 	condition.position=Vector2(10,153); condition.scale=Vector2.ONE*.8; add_child(condition)
 func factor() -> float: return 1.0 if game.hud_detail_left>0 else .75
 func draw_group(anchor: Vector2) -> void:
-	draw_set_transform(anchor*(1-factor()),0,Vector2.ONE*factor())
+	var offset := maxf(0,get_viewport_rect().size.y-360)
+	draw_set_transform(anchor*(1-factor())+Vector2(0,offset if anchor.y>300 else (offset*.5 if anchor.y>100 else 0.0)),0,Vector2.ONE*factor())
 func _process(_delta: float) -> void:
 	condition.visible = game.mode=="playing"
 	condition.scale = Vector2.ONE*.8*factor()
-	condition.position = Vector2(8,354)+(Vector2(10,153)-Vector2(8,354))*factor()
+	condition.position = Vector2(8,354)+(Vector2(10,153)-Vector2(8,354))*factor()+Vector2(0,maxf(0,get_viewport_rect().size.y-360))
 	queue_redraw()
 func label(p: Vector2,value: String,color: Color=Color.WHITE,size: int=15) -> void:
-	draw_string(font,p,value,HORIZONTAL_ALIGNMENT_LEFT,-1,size,color)
+	var width := 350.0 if p.x==17 else (670.0 if p.x==410 else 800.0)
+	var fitted := size
+	while fitted>10 and font.get_string_size(value,HORIZONTAL_ALIGNMENT_LEFT,-1,fitted).x>width: fitted-=1
+	draw_string(font,p,value,HORIZONTAL_ALIGNMENT_LEFT,width,fitted,color)
 func _draw() -> void:
 	if game.mode!="playing": return
 	draw_group(Vector2(8,8))
 	draw_rect(Rect2(8,8,365,91),Color(0,0,0,.7))
-	label(Vector2(17,28),"P%d  /  LEVEL %02d  /  %s"%[1 if game.controller_device<0 else 2,game.level,game.objective_species().to_upper()])
+	label(Vector2(17,28),"P%d  /  LEVEL %02d  /  %s"%[game.coop.peer_id(),game.level,game.objective_species().to_upper()])
 	label(Vector2(17,49),game.campaign.objective_text() if not game.free_play else "FREE PLAY",Color("e9bb7f"))
 	label(Vector2(17,70),"%d CR / YOUR CREDITS"%game.progress.money,Color("e9bb7f"),14)
 	label(Vector2(17,90),game.coop.earnings_text(),Color("e9bb7f"),13)
@@ -39,7 +43,7 @@ func _draw() -> void:
 		label(Vector2(450,192),"HOLD RT" if game.controller_device>=0 else "HOLD F OR LEFT MOUSE",Color("ffe3ae"),14)
 		draw_rect(Rect2(450,202,350,12),Color(.05,.02,.02,.9))
 		draw_rect(Rect2(450,202,350*game.struggle_progress,12),Color("ffad78"))
-	if game.controller_device>=0 and Input.get_connected_joypads().is_empty(): label(Vector2(410,210),"CONNECT A CONTROLLER FOR PLAYER 2",Color("ffe3ae"),20)
+	if game.controller_device>=0 and game.controller_device not in Input.get_connected_joypads(): label(Vector2(410,210),"CONNECT CONTROLLER / PLAYER %d"%game.coop.peer_id(),Color("ffe3ae"),20)
 	draw_group(Vector2(1272,8))
 	draw_rect(Rect2(1100,8,170,106),Color(0,0,0,.75))
 	for coast in game.world.exploration_data.outlines:

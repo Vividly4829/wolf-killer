@@ -44,7 +44,7 @@ func _ready() -> void:
 	multiplayer.connection_failed.connect(_failed)
 	multiplayer.server_disconnected.connect(_failed)
 # Local split screen uses no network peer, socket, handshake or public slot.
-var local_partner: Node
+var local_partners: Dictionary = {}
 var local_peer_id := 0
 var local_sender := 0
 func server() -> bool: return local_peer_id==1 if local_peer_id>0 else multiplayer.is_server()
@@ -53,27 +53,31 @@ func sender_id() -> int: return local_sender if local_peer_id>0 else multiplayer
 func client() -> bool: return active and not server()
 func send_to(id: int,method: String,args: Array = []) -> void:
 	if local_peer_id>0:
-		if is_instance_valid(local_partner) and local_partner.active and id==local_partner.local_peer_id:
-			local_partner.receive_local(method,args.duplicate(true),local_peer_id)
+		var partner = local_partners.get(id)
+		if is_instance_valid(partner) and partner.active:
+			partner.receive_local(method,args.duplicate(true),local_peer_id)
 		return
 	callv("rpc_id",[id,method]+args)
 func send_all(method: String,args: Array = [],include_self: bool = false) -> void:
 	if local_peer_id>0:
-		if is_instance_valid(local_partner): send_to(local_partner.local_peer_id,method,args)
+		for id in connected_peers(): send_to(id,method,args)
 		if include_self: callv(method,args)
 		return
 	# Existing @rpc annotations retain authority, reliability and call_local.
 	callv("rpc",[method]+args)
 func receive_local(method: String,args: Array,source: int) -> void:
-	if not active or not is_instance_valid(local_partner) or source!=local_partner.local_peer_id: return
+	if not active or not local_partners.has(source): return
 	var previous:=local_sender
 	local_sender=source
 	callv(method,args)
 	local_sender=previous
-func setup_local(partner: Node,id: int) -> void:
+func setup_local(partner: Variant,id: int) -> void:
 	leave()
-	local_partner=partner; local_peer_id=id; active=true
-	status="LOCAL TWO-PLAYER / FRIENDLY FIRE ON"
+	local_peer_id=id; active=true
+	var partners: Array = partner if partner is Array else [partner]
+	for other in partners:
+		if other != self: local_partners[partners.find(other)+1 if partner is Array else (2 if id==1 else 1)] = other
+	status="LOCAL CO-OP / FRIENDLY FIRE ON"
 	local_area=Avatar.hitbox(game.player,id)
 func host_session() -> void:
 	internet_host_requested=false
@@ -118,7 +122,7 @@ func leave() -> void:
 	multiplayer.auth_callback=Callable()
 	multiplayer.refuse_new_connections=false
 	multiplayer.server_relay=true
-	local_partner=null; local_peer_id=0; local_sender=0
+	local_partners.clear(); local_peer_id=0; local_sender=0
 	active = false
 	reward_serial=0; received_reward_serial=-1
 	awaiting_spawn=false
@@ -168,7 +172,7 @@ func _peer_connected(id: int) -> void:
 	avatar.position = spawn_point(id)
 	game.add_child(avatar)
 	avatars[id] = avatar
-	status = "LOCAL TWO-PLAYER / FRIENDLY FIRE ON" if local_peer_id>0 else ("INTERNET / %d OF 4"%(avatars.size()+1) if not internet.invite.is_empty() else "HOST / UDP %d / %d OF 4" % [port,avatars.size()+1])
+	status = "LOCAL CO-OP / FRIENDLY FIRE ON" if local_peer_id>0 else ("INTERNET / %d OF 4"%(avatars.size()+1) if not internet.invite.is_empty() else "HOST / UDP %d / %d OF 4" % [port,avatars.size()+1])
 func _peer_left(id: int) -> void:
 	if avatars.has(id): release_remote_maul(id)
 	if avatars.has(id): avatars[id].queue_free(); avatars.erase(id)
@@ -205,7 +209,7 @@ func wake_remote(id: int,recovery: bool) -> void:
 @rpc("authority","reliable")
 func wake_player(wave: int,season: int,hour: int,blood: bool,spawn: Vector3,yaw: float,epoch: int,recovery: bool = false) -> void:
 	awaiting_spawn=false
-	status="LOCAL TWO-PLAYER / FRIENDLY FIRE ON" if local_peer_id>0 else "CONNECTED / FRIENDLY FIRE ON"
+	status="LOCAL CO-OP / FRIENDLY FIRE ON" if local_peer_id>0 else "CONNECTED / FRIENDLY FIRE ON"
 	generation = epoch
 	local_spawn = spawn
 	local_yaw = yaw
@@ -639,7 +643,8 @@ func animal_voice(kind: String,p: Vector3,volume: float,pitch: float) -> void:
 func connected_peers() -> Array[int]:
 	if local_peer_id>0:
 		var peers: Array[int]=[]
-		if active and is_instance_valid(local_partner) and local_partner.active: peers.append(local_partner.local_peer_id)
+		for id in local_partners:
+			if active and is_instance_valid(local_partners[id]) and local_partners[id].active: peers.append(id)
 		return peers
 	var result: Array[int] = []
 	if not active: return result

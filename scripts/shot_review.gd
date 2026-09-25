@@ -154,7 +154,7 @@ func _process(delta: float) -> void:
 	var split: bool = is_instance_valid(game.split_session)
 	var factor: float = (.55 if expanded else .45) if split else (.78 if expanded else .65)
 	scale = Vector2.ONE*factor
-	position = Vector2(1271-410*factor,354-345*factor) if split else Vector2(1255-410*factor,710-345*factor)
+	position = Vector2(get_viewport_rect().size.x-9-410*factor,get_viewport_rect().size.y-6-345*factor) if split else Vector2(1255-410*factor,710-345*factor)
 	# Every review stays readable; bottom-right layout preserves the aiming area.
 	modulate.a = 1.0
 	if replay_dirty:

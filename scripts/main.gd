@@ -1402,10 +1402,10 @@ func beam_effect(a: Vector3,b: Vector3) -> void:
 		fade.tween_interval(.12); fade.tween_property(material,"albedo_color:a",0.0,.23)
 	get_tree().create_timer(.36).timeout.connect(effect.queue_free)
 
-func start_split() -> void:
+func start_split(count: int = 2) -> void:
 	var session = load("res://scripts/split_session.gd").new()
 	get_tree().root.add_child(session)
-	session.launch.call_deferred(self)
+	session.launch.call_deferred(self,count)
 
 func radar_dangerous(animal: Node3D) -> bool:
 	return animal is IslandWolf or str(animal.get("species")) in ["moose","bear","raider","legionary","musketeer","angel","devil"] or animal.get("alerted")==true
