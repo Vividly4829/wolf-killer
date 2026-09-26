@@ -76,3 +76,9 @@ setting was retained. Pack AI, anatomy and mission mechanics remain active.
 Final regression results: new gameplay checks passed; all nine new-enemy local
 co-op checks passed; all-animal limb checks passed; all eleven wallet/continue
 checks passed; four-player input ownership and native 4K HUD tests passed.
+
+## Packaged build and crowded-pack follow-up
+
+Windows executable smoke test completed with `VISUAL_QA_COMPLETE` and no script errors. Release archive and executable SHA-256 hashes match the build manifest.
+
+With all 23 wolves crowded near the players, four-player native 4K averaged 27.11 FPS (p95 44.64 ms), with one 493 ms peak. A diagnostic repeat averaged 27.41 FPS (p95 47.30 ms, maximum 53.54 ms). The isolated hitch did not recur; consistent 60 FPS is not achieved in this stress scenario. Logs: `stress-close-4.log`, `stress-close-profile.log`, `exe-smoke-captured.log`.
