@@ -4,6 +4,7 @@ const WeaponCatalog = preload("res://scripts/weapon_catalog.gd")
 
 var transient := false
 const STARTING_CREDITS := 0
+const WALLET_RESET_REVISION := 1
 var money: int = STARTING_CREDITS
 var owned: Array[int] = [0]
 var stowed: Array[int] = []
@@ -24,6 +25,8 @@ func load_progress() -> void:
 	resume_level=clampi(int(config.get_value("progress","resume_level",0)),0,30)
 	resume_players=clampi(int(config.get_value("progress","resume_players",1)),1,4)
 	money = clampi(int(config.get_value("progress", "money", STARTING_CREDITS)), 0, 2000000000)
+	var reset_wallet := int(config.get_value("progress","wallet_reset_revision",0)) < WALLET_RESET_REVISION
+	if reset_wallet: money=0
 	best_level = maxi(1, int(config.get_value("progress", "best_level", 1)))
 	total_kills = maxi(0, int(config.get_value("progress", "total_kills", 0)))
 	owned = [0]
@@ -42,11 +45,13 @@ func load_progress() -> void:
 	for value in config.get_value("progress","stowed",[]):
 		if value is int and owned.has(value) and not stowed.has(value): stowed.append(value)
 	if owned.all(func(index): return stowed.has(index)): stowed.erase(0)
+	if reset_wallet: save_progress()
 
 func save_progress() -> bool:
 	if transient: return true
 	var config := ConfigFile.new()
-	config.set_value("progress", "version", 3)
+	config.set_value("progress", "version", 4)
+	config.set_value("progress","wallet_reset_revision",WALLET_RESET_REVISION)
 	config.set_value("progress","resume_level",resume_level)
 	config.set_value("progress","resume_players",resume_players)
 	config.set_value("progress", "money", money)

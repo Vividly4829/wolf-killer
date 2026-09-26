@@ -86,6 +86,9 @@ func _ready() -> void:
 	samples["howl"] = WOLF_HOWL
 	samples["wolf_hurt"]=load("res://assets/audio/wolf_hurt.wav")
 	for species in ["duck","goose","deer","moose","mink"]: samples[species+"_hurt"]=load("res://assets/audio/"+species+"_hurt.wav")
+	samples["enemy_nazi_bark"]=load("res://assets/audio/enemy_nazi_bark.wav")
+	samples["rabbit_hurt"]=load("res://assets/audio/mink_hurt.wav")
+	samples["wererabbit_hurt"]=load("res://assets/audio/wolf_hurt.wav")
 	samples["bear_growl"]=load("res://assets/audio/bear_growl.wav")
 	dialogue = AudioStreamPlayer.new()
 	dialogue.stream = preload("res://assets/audio/opening_line.wav")

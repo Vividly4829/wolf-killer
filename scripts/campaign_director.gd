@@ -111,7 +111,8 @@ func begin() -> void:
 	event="none"
 	if rng.randf()<Catalog.encounter_chance(game.level):
 		var choices: Array=["wolves","wolves","patrol","bear"]
-		if game.level>=6: choices.append("werewolf")
+		if game.level>=6: choices.append_array(["werewolf","wererabbit"])
+		if game.level>=20: choices.append_array(["confederates","nazis"])
 		if game.level>10: choices.append_array(["legionaries","musketeers"])
 		choices.erase(last_event)
 		event=choices[rng.randi_range(0,choices.size()-1)]
@@ -289,7 +290,7 @@ func _process(delta: float) -> void:
 	if repair_timer<=0: repair_timer=12; ensure_huntable()
 func warn_event() -> void:
 	warned=true; event_at=elapsed; event_origin=encounter_point()
-	var cues={"musketeers":"Boots march in time. A line of shakos and musket barrels emerges from the trees.","legionaries":"Metal rattles beyond the trees. A line of red shields approaches.","werewolf":"A harsh, unnatural roar echoes through the trees.","wolves":"A distant howl. Something is moving beyond the trees.","carcass_pack":"Wolves are calling near the hunting grounds.","scent_pack":"Howls drift along your trail. Wolves are following the hunt.","migration":"Answering howls: the packs are moving.","crossfire":"Gunfire has drawn distant howls.","patrol":"Bootsteps and voices carry from another shore.","scout":"A returning scout whistles in the distance.","pursuit":"Shouts behind you. The camp has noticed the theft.","bear":"Heavy tracks and disturbed brush near the cabins.","bear_claim":"A low bellow carries from the carcass trail.","fog":"Mist is rolling in from the water.","rain":"Dark clouds gather. Rain is coming.","wind":"The wind is rising across the water.","fever":"A chill and a cough. You may be developing a fever."}
+	var cues={"confederates":"Four grey-coated soldiers are moving through the woods.","nazis":"An enemy patrol is approaching. Four soldiers; find cover.","wererabbit":"Something heavy bounds through the undergrowth. Those are not ordinary rabbits.","musketeers":"Boots march in time. A line of shakos and musket barrels emerges from the trees.","legionaries":"Metal rattles beyond the trees. A line of red shields approaches.","werewolf":"A harsh, unnatural roar echoes through the trees.","wolves":"A distant howl. Something is moving beyond the trees.","carcass_pack":"Wolves are calling near the hunting grounds.","scent_pack":"Howls drift along your trail. Wolves are following the hunt.","migration":"Answering howls: the packs are moving.","crossfire":"Gunfire has drawn distant howls.","patrol":"Bootsteps and voices carry from another shore.","scout":"A returning scout whistles in the distance.","pursuit":"Shouts behind you. The camp has noticed the theft.","bear":"Heavy tracks and disturbed brush near the cabins.","bear_claim":"A low bellow carries from the carcass trail.","fog":"Mist is rolling in from the water.","rain":"Dark clouds gather. Rain is coming.","wind":"The wind is rising across the water.","fever":"A chill and a cough. You may be developing a fever."}
 	announce(cues.get(event,"Something moves in the distance."))
 	if event in ["wolves","carcass_pack","scent_pack","migration","crossfire"]:
 		game.sounds.play_at("howl",event_origin,-8)
@@ -306,6 +307,19 @@ func launch_event() -> void:
 	# Recheck distance after the warning in case a player approached the clue.
 	if not distant_from_hunters(event_origin,30): event_origin=encounter_point()
 	match event:
+		"confederates","nazis":
+			if game.level<20: return
+			pack_serial+=1
+			for i in 4:
+				var soldier=preload("res://scripts/period_soldier.gd").new()
+				soldier.game=game; soldier.species="confederate" if event=="confederates" else "nazi"
+				soldier.squad=pack_serial; soldier.rank_index=i
+				game.add_child(soldier); soldier.position=reachable(event_origin+Vector3((i%2)*2.2,0,(i/2)*2.5))
+				soldier.home=soldier.position; soldier.hear(game.player.position)
+		"wererabbit":
+			var rabbit=preload("res://scripts/were_rabbit.gd").new()
+			rabbit.game=game; rabbit.species="wererabbit"; rabbit.position=reachable(event_origin)
+			game.add_child(rabbit)
 		"musketeers":
 			if game.level<=10: return
 			pack_serial+=1

@@ -296,7 +296,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				game.call("toggle_fire_mode")
 			KEY_SPACE:
 				if _jump_height < 0.02 and not is_crouching and (bool(_weapon_spec().get("move_reload", true)) or float(game.get("reload_left")) <= 0.0):
-					_jump_velocity = 6.1 * (1.0 - leg_injury * 0.45)
+					_jump_velocity = 6.1 * (1.0 - leg_injury * 0.45) * sqrt(game.rituals.factor("jump"))
 					_emit_noise(0.85, 0.35)
 	if event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
@@ -349,6 +349,7 @@ func _physics_process(delta: float) -> void:
 		speed = minf(speed, 1.65 * (1.0 - leg_injury * 0.3))
 	if is_crouching:
 		speed = 1.25 * game.rituals.factor("sneak") * (1.0 - leg_injury * 0.3)
+	if _jump_height>.02: speed*=game.rituals.factor("jump_speed")
 	speed *= supernatural_speed
 	if nav.has_method("vegetation_factor"): speed *= nav.call("vegetation_factor",position)
 	var forward := Vector3(-sin(yaw), 0.0, -cos(yaw))
@@ -443,7 +444,7 @@ func fight_held() -> bool:
 func jump() -> void:
 	if game.mode!="playing" or _is_struggling(): return
 	if _jump_height<.02 and not is_crouching and (bool(_weapon_spec().get("move_reload",true)) or float(game.reload_left)<=0):
-		_jump_velocity=6.1*(1-leg_injury*.45); _emit_noise(.85,.35)
+		_jump_velocity=6.1*(1-leg_injury*.45)*sqrt(game.rituals.factor("jump")); _emit_noise(.85,.35)
 func controller_button(button: int) -> void:
 	if game.mode=="weapon_stats":
 		if button in [JOY_BUTTON_DPAD_LEFT, JOY_BUTTON_LEFT_SHOULDER]: game.hud.step_stats_page(-1)

@@ -239,7 +239,7 @@ func _update_pursuit() -> void:
 
 func _process(delta: float) -> void:
 	hud_detail_left = maxf(0.0, hud_detail_left-delta)
-	world.wolf_nav.pump_field()
+	if not coop.client(): world.wolf_nav.pump_field()
 	hit_flash = maxf(0, hit_flash - delta)
 	damage_flash = maxf(0, damage_flash - delta)
 	sounds.set_context(is_player_safe(), is_playing())
@@ -568,6 +568,7 @@ func _spawn_wildlife() -> void:
 	var species_list: Array = ["deer","deer","duck","duck","goose","mink"]
 	if level<=2: species_list = ["deer","deer","deer","deer","duck","goose","mink"]
 	if level==3: species_list = ["deer","deer","duck","duck","goose","goose","goose","mink"]
+	species_list.append_array(["rabbit","rabbit","rabbit"])
 	var local_count := species_list.size()
 	# Additional wildlife across the connected map, independent of the quota.
 	species_list.append_array(["moose","moose","deer","deer","deer","deer","deer","deer","duck","duck","duck","goose","goose","mink","mink"])
@@ -727,8 +728,8 @@ func fire_weapon() -> void:
 		show_notice("Used up. Buy another at the store.",3)
 		return
 	if mode != "playing": return
-	if is_player_safe():
-		show_notice("Lower your weapon indoors. Leave through either door to hunt.",2)
+	if not world.firing_allowed(player.position):
+		show_notice("Weapons down. Move at least 3 m away from the starting cabin.",2)
 		return
 	if not is_playing() or is_struggling() or bandage_left > 0 or fire_cooldown > 0 or reload_left > 0:
 		return
@@ -1465,4 +1466,4 @@ func start_split(count: int = 2, resume: bool = false) -> void:
 	session.launch.call_deferred(self,count,resume)
 
 func radar_dangerous(animal: Node3D) -> bool:
-	return animal is IslandWolf or str(animal.get("species")) in ["moose","bear","raider","legionary","musketeer","angel","devil"] or animal.get("alerted")==true
+	return animal is IslandWolf or str(animal.get("species")) in ["moose","bear","raider","legionary","musketeer","confederate","nazi","angel","devil"] or animal.get("alerted")==true

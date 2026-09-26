@@ -17,7 +17,7 @@ func _ready() -> void:
 func review(reports: Array[Dictionary]) -> void:
 	if reports.is_empty(): return
 	var shot: Dictionary = reports.back()
-	if shot.get("species","") not in ["deer","moose","duck","goose","mink","bear"]: return
+	if shot.get("species","") not in ["deer","moose","duck","goose","mink","bear","rabbit","wererabbit"]: return
 	species = shot.species
 	for child in scene.get_children():
 		if child!=camera: child.free()
@@ -27,6 +27,9 @@ func review(reports: Array[Dictionary]) -> void:
 	var height := 1.7 if species=="moose" else .95 if deer else (.28 if bird else .15)
 	var length := 1.1 if species=="moose" else 1.0 if species=="bear" else .65 if deer else (.27 if bird else .24)
 	var width := .45 if species=="moose" else .36 if species=="bear" else .19 if deer else (.14 if bird else .06)
+	if species in ["rabbit","wererabbit"]:
+		var k:=2.2 if species=="wererabbit" else 1.0
+		height=.55*k; length=.51*k; width=.26*k
 	var organs: Array = preload("res://scripts/wildlife_anatomy.gd").organs(species)
 	var head: Vector3 = organs[1].center
 	ellipsoid(Vector3(0,height-.10,0),Vector3(width*1.2,height*.27,length),material(Color(.08,.3,.9,.18)))

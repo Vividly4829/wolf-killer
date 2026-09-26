@@ -21,7 +21,7 @@ func species_name() -> String:
 	return "werewolf" if animal is IslandWolf and animal.werewolf else "wolf" if animal is IslandWolf else str(animal.get("species"))
 func pain_voice() -> void:
 	var species:=species_name()
-	var sound:= "wolf_hurt" if species in ["wolf","werewolf"] else "bear_growl" if species=="bear" else "gun_pain_1" if species in ["raider","legionary","musketeer","angel","devil"] else species+"_hurt"
+	var sound:= "wolf_hurt" if species in ["wolf","werewolf"] else "bear_growl" if species=="bear" else "gun_pain_1" if species in ["raider","legionary","musketeer","confederate","nazi","angel","devil"] else species+"_hurt"
 	animal.game.sounds.play_at(sound,animal.position,-7,randf_range(.92,1.08))
 	if animal.game.coop.active and not animal.game.coop.client(): animal.game.coop.broadcast_voice(sound,animal.position,-7,1.0)
 func show_health() -> void:
@@ -77,6 +77,8 @@ func _process(delta: float) -> void:
 	match species_name():
 		"goose","duck","mink": height=.25; width=.17
 		"moose": height=1.5; width=.55
+		"rabbit": height=.40; width=.36
+		"wererabbit": height=.88; width=.79
 		"werewolf": height=1.3; width=.45
 	if animal is IslandWolf and not animal.werewolf:
 		height*=animal.size_scale; width*=animal.size_scale
@@ -84,12 +86,15 @@ func _process(delta: float) -> void:
 	pose.basis=Basis.from_euler(Vector3(sin(flinch*25)*flinch*.45,0,angle))
 	var grounded_center:=Vector3(0,lerpf(height,width,abs(sin(angle))),0)
 	pose.origin=grounded_center-pose.basis*center
-	animal.model.transform=pose*rest_model
+	if down<=0 and not falling: pose.origin.y+=float(animal.get_meta("hop_height",0.0))
+	var visual_pose:=pose*rest_model
+	if not animal.model.transform.is_equal_approx(visual_pose): animal.model.transform=visual_pose
 	# Body collision and organ coordinates share exactly the visible fall pose.
 	for child in animal.get_children():
 		if child is Area3D and child.get_meta("hit_zone","")=="body":
 			if not areas.has(child): areas[child]=child.transform
-			child.transform=pose*areas[child]
+			var body_pose:Transform3D=pose*areas[child]
+			if not child.transform.is_equal_approx(body_pose): child.transform=body_pose
 	if incapacitated():
 		if not animal.game.coop.client() and Time.get_ticks_msec()/1000.0>=next_voice:
 			next_voice=Time.get_ticks_msec()/1000.0+randf_range(5,10); pain_voice()

@@ -428,12 +428,12 @@ func state(hunters: Array,animals: Array,wave: int,mode: String,waiting: bool,pe
 			if animal.type=="wolf":
 				node = preload("res://scripts/wolf.gd").new()
 				node.configure(game,game.world.wolf_nav,mini(wave,12),int(animal.seed))
-			elif animal.type in ["bear","raider","legionary","musketeer","angel","devil"]:
-				node=preload("res://scripts/supernatural_actor.gd").new() if animal.type in ["angel","devil"] else preload("res://scripts/musketeer.gd").new() if animal.type=="musketeer" else preload("res://scripts/legionary.gd").new() if animal.type=="legionary" else preload("res://scripts/campaign_threat.gd").new()
+			elif animal.type in ["bear","raider","legionary","musketeer","confederate","nazi","angel","devil"]:
+				node=preload("res://scripts/supernatural_actor.gd").new() if animal.type in ["angel","devil"] else preload("res://scripts/period_soldier.gd").new() if animal.type in ["confederate","nazi"] else preload("res://scripts/musketeer.gd").new() if animal.type=="musketeer" else preload("res://scripts/legionary.gd").new() if animal.type=="legionary" else preload("res://scripts/campaign_threat.gd").new()
 				node.game=game; node.species=animal.type
 				node.raider_weapon=int(animal.get("weapon",21))
 			else:
-				node = preload("res://scripts/wildlife.gd").new()
+				node = preload("res://scripts/were_rabbit.gd").new() if animal.type=="wererabbit" else preload("res://scripts/wildlife.gd").new()
 				node.game = game
 				node.species = animal.type
 			game.add_child(node)
@@ -447,12 +447,12 @@ func state(hunters: Array,animals: Array,wave: int,mode: String,waiting: bool,pe
 			node.position = animal.p
 			node.rotation.y = animal.yaw
 		apply_animal_life(node,animal)
-		if animal.type in ["raider","legionary","musketeer"]:
+		if animal.type in ["raider","legionary","musketeer","confederate","nazi"]:
 			node.model.get_child(0).set_motion(float(animal.get("move",0)),false,animal.get("alerted",false),animal.get("attack",false))
 			node.model.get_child(0).set_process(not node.dead)
 		if animal.type=="musketeer": node.model.get_child(0).reloading=animal.get("reload",false)
 		if animal.type=="wolf" and node.werewolf: node.model.set_process(not node.dead)
-		if animal.type not in ["wolf","bear","raider","legionary","musketeer","angel","devil"]:
+		if animal.type not in ["wolf","bear","raider","legionary","musketeer","confederate","nazi","angel","devil"]:
 			node.aquatic = animal.get("aquatic",false)
 			if animal.get("bleed",0)>0 and not node.aquatic and clock-float(node.get_meta("last_trail",-10))>.55:
 				game.gore.blood_pool(node.position,.13)
@@ -507,7 +507,7 @@ func shoot(origin: Vector3,direction: Vector3,weapon: int,serial: int,secondary:
 	var id := sender_id()
 	if not avatars.has(id) or weapon<0 or weapon>=game.WEAPONS.size() or not origin.is_finite() or not direction.is_finite(): return
 	var avatar = avatars[id]
-	if avatar.get_meta("sprinting",false) or avatar.health<=0 or game.world.is_safe_position(avatar.position) or origin.distance_to(avatar.position)>2.3 or direction.length()<.9: return
+	if avatar.get_meta("sprinting",false) or avatar.health<=0 or not game.world.firing_allowed(avatar.position) or origin.distance_to(avatar.position)>2.3 or direction.length()<.9: return
 	var spec: Dictionary = preload("res://scripts/weapon_catalog.gd").secondary_weapon() if weapon==9 and secondary else preload("res://scripts/weapon_catalog.gd").weapon(weapon)
 	if clock-float(last_shot.get(id,-100)) < float(spec.interval)*.9: return
 	if game.rituals.tasks.has(id): return
@@ -1002,3 +1002,6 @@ func paid_revive_accepted(point: Vector3,epoch: int,revision: int) -> void:
 	revive_revision=revision
 	game.finish_paid_revive(point)
 	if is_instance_valid(local_area): local_area.collision_layer=2
+
+@rpc("authority","reliable")
+func beast_infection() -> void: game.affliction.infect()

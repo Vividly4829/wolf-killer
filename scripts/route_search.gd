@@ -42,7 +42,7 @@ func pop() -> Array:
 	return top
 func advance() -> void:
 	if finished: return
-	var current:=Engine.get_physics_frames()
+	var current:=Engine.get_process_frames()
 	if current!=frame: frame=current; spent=0
 	if spent>=3000: return
 	var start_time:=Time.get_ticks_usec()

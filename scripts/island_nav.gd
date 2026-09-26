@@ -68,21 +68,25 @@ func point(i: int) -> Vector3:
 	return Vector3(origin.x + (i % width) * cell_size, heights[i], origin.y + int(i / width) * cell_size)
 
 func nearest(x: float, z: float, radius: float = 8.0) -> int:
-	var best := -1
-	var score := INF
-	var column := roundi((x - origin.x) / cell_size)
-	var row := roundi((z - origin.y) / cell_size)
-	var n := ceili(radius / cell_size)
-	for dz in range(-n, n + 1):
-		for dx in range(-n, n + 1):
-			var i := index(column + dx, row + dz)
-			if not valid(i):
-				continue
-			var p := point(i)
-			var distance := Vector2(p.x - x, p.z - z).length_squared()
-			if distance < score:
-				score = distance
-				best = i
+	var column := roundi((x-origin.x)/cell_size)
+	var row := roundi((z-origin.y)/cell_size)
+	var n := ceili(radius/cell_size)
+	if column+n<0 or row+n<0 or column-n>=width or row-n>=depth: return -1
+	var best := index(column,row)
+	if valid(best): return best
+	best=-1
+	var score:=INF
+	# Search shells; stop once unvisited cells cannot beat the closest sample.
+	for ring in range(1,n+1):
+		for dz in range(-ring,ring+1):
+			for dx in range(-ring,ring+1):
+				if absi(dx)!=ring and absi(dz)!=ring: continue
+				var i:=index(column+dx,row+dz)
+				if not valid(i): continue
+				var p:=point(i)
+				var distance:=Vector2(p.x-x,p.z-z).length_squared()
+				if distance<score: score=distance; best=i
+		if score<=pow((ring+.5)*cell_size,2): break
 	return best
 
 func height_at(x: float, z: float) -> float:

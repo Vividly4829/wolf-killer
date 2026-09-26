@@ -1,6 +1,7 @@
 extends Control
 var game: Node
 var condition: Control
+var redraw_left:=0.0
 var font := ThemeDB.fallback_font
 func _ready() -> void:
 	mouse_filter=Control.MOUSE_FILTER_IGNORE
@@ -14,7 +15,9 @@ func _process(_delta: float) -> void:
 	condition.visible = game.mode=="playing"
 	condition.scale = Vector2.ONE*.8*factor()
 	condition.position = Vector2(8,354)+(Vector2(10,153)-Vector2(8,354))*factor()+Vector2(0,maxf(0,get_viewport_rect().size.y-360))
-	queue_redraw()
+	redraw_left-=_delta
+	if redraw_left<=0:
+		redraw_left=.05; queue_redraw()
 func label(p: Vector2,value: String,color: Color=Color.WHITE,size: int=15) -> void:
 	var width := 350.0 if p.x==17 else (670.0 if p.x==410 else 800.0)
 	var fitted := size

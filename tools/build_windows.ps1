@@ -1,4 +1,4 @@
-param([string]$Godot = $env:GODOT_BIN)
+param([string]$Godot = $env:GODOT_BIN, [string]$OutputDirectory = 'build/windows')
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 if (-not $Godot) {
@@ -10,7 +10,7 @@ if (-not $Godot) {
         $Godot = $installed.Source
     }
 }
-$buildRoot = Join-Path $projectRoot 'build/windows'
+$buildRoot = Join-Path $projectRoot $OutputDirectory
 $releaseRoot = Join-Path $projectRoot 'releases/windows'
 New-Item -ItemType Directory -Force -Path $buildRoot, $releaseRoot | Out-Null
 $exePath = Join-Path $buildRoot 'WolfIsland.exe'
@@ -35,7 +35,8 @@ verified 55 MB Cloudflare helper. Invite copies automatically; friends paste
 it into JOIN. Pause > COPY INTERNET INVITE copies it again. No port forwarding.
 Experimental free playtest relay: availability is not guaranteed. Host must stay open.
 Progress is stored in %APPDATA%\Wolf Island, outside this folder.
-The build is unsigned. Local split screen uses keyboard/mouse for P1 and a controller for P2.
+The build is unsigned. Local split screen supports 2, 3 or 4 players. P1 uses keyboard/mouse;
+P2-P4 each use a separate controller. Select the player count in the main menu.
 Source and updates: https://github.com/Vividly4829/wolf-killer
 Engine and asset notices accompany the executable.
 '@ | Set-Content -LiteralPath (Join-Path $buildRoot 'PLAY.txt') -Encoding UTF8

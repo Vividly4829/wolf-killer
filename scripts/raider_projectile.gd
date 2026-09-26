@@ -34,7 +34,7 @@ func _physics_process(delta: float) -> void:
 	var victims: Array=[game.player]+game.coop.avatars.values()+game.wolves+game.nodes_in_group("campaign_threats")
 	victims.sort_custom(func(a,b): return a.position.distance_squared_to(position)<b.position.distance_squared_to(position))
 	for victim in victims:
-		if victim==attacker or victim.get("dead")==true or victim.get("species") in ["raider","legionary","musketeer"]: continue
+		if victim==attacker or victim.get("dead")==true or victim.get("species") in ["raider","legionary","musketeer","confederate","nazi"]: continue
 		if game.world.is_safe_position(victim.position): continue
 		var chest: Vector3=victim.position+Vector3.UP
 		if Geometry3D.get_closest_point_to_segment(chest,position,end).distance_to(chest)<.38:

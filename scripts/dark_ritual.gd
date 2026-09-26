@@ -1,5 +1,7 @@
 extends Node
 const BOONS := {
+	"wererabbit":{"name":"BLOODMOON BOUND","effect":"jump","factor":1.5,"description":"50% higher jumps per stack"},
+	"rabbit":{"name":"LIGHTFOOT","effect":"jump_speed","factor":1.2,"description":"20% faster airborne movement per stack"},
 	"devil":{"name":"INFERNAL FORTUNE","effect":"earnings","factor":1.5,"description":"50% more earned credits per stack"},
 	"angel":{"name":"ANGEL DESTROYER","effect":"flat_damage","factor":31.0,"description":"+30 damage per hit per stack"},
 	"moose":{"name":"TITAN'S ENDURANCE","effect":"stamina_regen","factor":2.0,"description":"Double stamina recovery"},
@@ -28,6 +30,7 @@ func _ready() -> void:
 	veil=ColorRect.new(); veil.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); veil.mouse_filter=Control.MOUSE_FILTER_IGNORE; layer.add_child(veil)
 	ui=Label.new(); ui.position=Vector2(345,650); ui.add_theme_font_size_override("font_size",13); ui.add_theme_color_override("font_color",Color("ffa1a1")); ui.mouse_filter=Control.MOUSE_FILTER_IGNORE; layer.add_child(ui)
 func kind(animal: Node3D) -> String:
+	if animal.get("species") in ["confederate","nazi"]: return "musketeer"
 	return ("werewolf" if animal.werewolf else "wolf") if animal is IslandWolf else str(animal.get("species"))
 func eligible(animal: Node3D) -> bool:
 	return is_instance_valid(animal) and not animal.is_queued_for_deletion() and animal.get("reaction") != null and animal.reaction.incapacitated() and BOONS.has(kind(animal)) and kind(animal)!="angel"
@@ -193,6 +196,8 @@ func status_entries() -> Array[Dictionary]:
 		var effect: String=BOONS[species].effect
 		var bonus:=roundi(absf(factor(effect)-1.0)*100.0)
 		var description: String={
+			"jump":"+%d%% jump height"%bonus,
+			"jump_speed":"+%d%% airborne movement speed"%bonus,
 			"earnings":"+%d%% earned credits"%bonus,
 			"flat_damage":"+%d damage per hit"%roundi(flat_damage()),
 			"stamina_regen":"+%d%% stamina recovery"%bonus,

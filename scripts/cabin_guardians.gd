@@ -63,7 +63,7 @@ func hostile(enemy: Node3D) -> bool:
 	var species: String=str(enemy.get("species"))
 	if species in ["deer","moose"]: return float(enemy.get("defensive_left"))>0
 	if species in ["bear","devil"]: return enemy.get("alerted")==true
-	return species in ["raider","legionary","musketeer","angel"]
+	return species in ["wererabbit","raider","legionary","musketeer","confederate","nazi","angel"]
 func candidates() -> Array:
 	return game.wolves+game.nodes_in_group("campaign_threats")+game.nodes_in_group("wildlife")
 func clear_sight(a: Vector3,b: Vector3) -> bool:

@@ -85,7 +85,7 @@ func capture_nearby() -> Array[Dictionary]:
 		if animal is IslandWolf:
 			pose.basis=pose.basis.scaled_local(Vector3.ONE*animal.size_scale)
 			if animal.werewolf: species="werewolf"
-		if species in ["legionary","musketeer","angel","devil"]: species="raider"
+		if species in ["legionary","musketeer","confederate","nazi","angel","devil"]: species="raider"
 		records.append({"target_uid":target_id,"target_transform":pose,"species":species,"distance_to_line":distance,"organs":[],"entry":Vector3.ZERO,"end":Vector3.UP*.001,"unhit":true})
 	records.sort_custom(func(a,b): return a.distance_to_line<b.distance_to_line)
 	return records.slice(0,8)
@@ -165,7 +165,7 @@ func _process(delta: float) -> void:
 	replay.tick(delta,visible)
 	var shown: Array[Dictionary]=target_reports(displayed().reports)
 	var blast: bool=displayed().trajectories.any(func(path): return path.has("blast"))
-	wildlife.visible=not blast and not shown.is_empty() and str(shown.back().get("species","")) in ["deer","moose","duck","goose","mink","bear"]
+	wildlife.visible=not blast and not shown.is_empty() and str(shown.back().get("species","")) in ["deer","moose","duck","goose","mink","bear","rabbit","wererabbit"]
 	human.visible=not blast and not shown.is_empty() and str(shown.back().get("species","")) in ["hunter","raider","werewolf","angel","devil"]
 	xray.visible=not blast and not shown.is_empty() and str(shown.back().get("species","wolf"))=="wolf"
 	front_views[0].visible=xray.visible; front_views[1].visible=human.visible; front_views[2].visible=wildlife.visible

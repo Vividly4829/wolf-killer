@@ -153,7 +153,7 @@ func detonate() -> void:
 		else: animal.damage(amount)
 		game.coop.shooter=previous_shooter
 		var report := {"entry":Vector3.ZERO,"end":Vector3.UP*.4,"organs":[],"zone":"BLAST","species":animal.get("species") if animal.get("species")!=null else "wolf","damage":before-animal.health,"calculated_damage":amount,"base_damage":spec.damage,"range_factor":1-d/radius,"multiplier":1.0,"distance":d,"weapon":spec.name}
-		if report.species in ["legionary","musketeer"]: report.species="raider"
+		if report.species in ["legionary","musketeer","confederate","nazi"]: report.species="raider"
 		report.target_uid=animal.get_instance_id()
 		report.target_transform=animal.global_transform
 		if shooter_peer==1:

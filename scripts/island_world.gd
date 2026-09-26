@@ -561,3 +561,13 @@ func set_quality(high_quality: bool) -> void:
 	sun.shadow_enabled = high_quality
 	for batch in leaf_batches:
 		batch.visible = high_quality
+
+## The starting cabin has a three-metre weapons-down apron, not invulnerability.
+func firing_allowed(p: Vector3) -> bool:
+	if is_safe_position(p): return false
+	var point:=Vector2(p.x,p.z)
+	if Geometry2D.is_point_in_polygon(point,cabin_outline): return false
+	for i in cabin_outline.size():
+		var nearest:=Geometry2D.get_closest_point_to_segment(point,cabin_outline[i],cabin_outline[(i+1)%cabin_outline.size()])
+		if point.distance_to(nearest)<3.0: return false
+	return true

@@ -999,6 +999,11 @@ func _think(_target: Vector3, distance: float, safe: bool, pack: Array[Node3D]) 
 var campaign_route := PackedVector3Array()
 var campaign_route_at := 0.0
 var campaign_search: RefCounted
+var direct_check_at:=-1.0
+var direct_check_goal:=Vector3.INF
+var direct_check_origin:=Vector3.INF
+var direct_clear:=false
+var shortcut_at:=-1.0
 func _toward_goal(goal: Vector3) -> Vector3:
 	if not goal.is_finite():
 		return Vector3.ZERO
@@ -1006,8 +1011,11 @@ func _toward_goal(goal: Vector3) -> Vector3:
 	offset.y = 0.0
 	if offset.length_squared() < 0.12:
 		return Vector3.ZERO
-	if offset.length_squared() < 256.0 and nav.call("line_clear", position.x, position.z, goal.x, goal.z):
-		return offset.normalized()
+	if _time>=direct_check_at or goal.distance_squared_to(direct_check_goal)>1.0 or position.distance_squared_to(direct_check_origin)>1.0:
+		direct_check_at=_time+.25
+		direct_check_goal=goal; direct_check_origin=position
+		direct_clear=offset.length_squared()<256.0 and nav.line_clear(position.x,position.z,goal.x,goal.z)
+	if direct_clear: return offset.normalized()
 	if campaign_search:
 		campaign_search.advance()
 		if campaign_search.finished: campaign_route=campaign_search.result; campaign_search=null
@@ -1018,7 +1026,8 @@ func _toward_goal(goal: Vector3) -> Vector3:
 			campaign_search=preload("res://scripts/route_search.gd").new()
 			campaign_search.start(nav,position,nav.point(cell))
 	while not campaign_route.is_empty() and Vector2(position.x-campaign_route[0].x,position.z-campaign_route[0].z).length()<.30: campaign_route.remove_at(0)
-	for shortcut in 2:
+	for shortcut in (2 if _time>=shortcut_at else 0):
+		shortcut_at=_time+.2
 		if campaign_route.size()>1 and preload("res://scripts/animal_route.gd").corridor_clear(nav,position,campaign_route[1]): campaign_route.remove_at(0)
 		else: break
 	if not campaign_route.is_empty():
@@ -1097,6 +1106,9 @@ func _can_bite(target: Vector3) -> bool:
 	return get_world_3d().direct_space_state.intersect_ray(ray).is_empty()
 
 func _physics_process(delta: float) -> void:
+	if not dead:
+		delta=preload("res://scripts/animal_simulation.gd").step(self,delta)
+		if delta<=0: return
 	_ensure_reaction()
 	if reaction and reaction.hold_incapacitated(): return
 	if is_queued_for_deletion() or not is_instance_valid(game):

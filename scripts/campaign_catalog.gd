@@ -4,7 +4,7 @@ extends RefCounted
 ## for compatibility with shared mission snapshots; there are no finding objectives.
 static var cache: Dictionary = {}
 static func wave(number: int, hunters: int = 1) -> Dictionary:
-	var cache_key:=number*4+clampi(hunters,1,3)
+	var cache_key:=number*5+clampi(hunters,1,4)
 	if cache.has(cache_key): return cache[cache_key].duplicate(true)
 	var jobs: Array = [
 		["First Supper", {"deer":1}, {}, 0,0, 0,0,0, ["none"]],
@@ -43,8 +43,10 @@ static func wave(number: int, hunters: int = 1) -> Dictionary:
 	# Searches were removed: every round has a hunting or combat objective.
 	job.sites=0; job.search=0
 	if number in [12,18,22]: job.kill={"raider":int(job.raiders)}
-	if number==19: job.title="The Forest Feast"; job.hunt={"deer":2,"goose":2}
-	if number==26: job.title="Winter Provisions"; job.hunt={"deer":2,"goose":1}
+	if number==19: job.title="The Forest Feast"; job.hunt={"deer":2,"rabbit":3}
+	if number==26: job.title="Winter Provisions"; job.hunt={"deer":2,"rabbit":4}
+	if number==7: job.title="Rabbit Stew"; job.hunt={"rabbit":3}
+	if number==13: job.hunt={"goose":1,"rabbit":2}
 	# Extra hunters add responsibilities, not extra hit points. Never change the intro.
 	if hunters>1 and number>3:
 		for key in job.hunt: job.hunt[key] += hunters-1

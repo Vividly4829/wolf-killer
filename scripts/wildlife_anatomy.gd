@@ -13,6 +13,10 @@ static func organs(species: String) -> Array:
 	elif species in ["duck","goose"]:
 		heart=Vector3(0,.25,.08); heart_size=Vector3(.055,.065,.065)
 		brain=Vector3(0,.72 if species=="goose" else .46,.24); brain_size=Vector3(.065,.065,.07)
+	elif species in ["rabbit","wererabbit"]:
+		var k:=2.2 if species=="wererabbit" else 1.0
+		heart=Vector3(0,.40,.20)*k; heart_size=Vector3(.065,.075,.08)*k
+		brain=Vector3(0,.62,.45)*k; brain_size=Vector3(.05,.055,.065)*k
 	elif species=="mink":
 		heart=Vector3(0,.13,.06); heart_size=Vector3(.045,.045,.055)
 		brain=Vector3(0,.19,.24); brain_size=Vector3(.045,.04,.05)
@@ -21,6 +25,9 @@ static func trace(species: String,entry: Vector3,direction: Vector3, penetration
 	var definitions:=organs(species)
 	var torso:=Vector3(.55,.59,1.1) if species=="moose" else Vector3(.30,.32,.72) if species=="deer" else Vector3(.52,.55,1.03) if species=="bear" else Vector3(.18,.18,.33) if species in ["duck","goose"] else Vector3(.12,.12,.35)
 	var center:=Vector3(0,1.55,0) if species=="moose" else Vector3(0,.82,0) if species=="deer" else Vector3(0,.9,0) if species=="bear" else Vector3(0,.24,0) if species in ["duck","goose"] else Vector3(0,.14,0)
+	if species in ["rabbit","wererabbit"]:
+		var k:=2.2 if species=="wererabbit" else 1.0
+		torso=Vector3(.36,.34,.51)*k; center=Vector3(0,.40,0)*k
 	penetration=preload("res://scripts/wolf_anatomy.gd").tissue_length(entry,direction,penetration,[{"center":center,"radii":torso},{"center":definitions[1].center,"radii":definitions[1].radii*1.6}])
 	var hit: Array[String] = []
 	for organ in organs(species):

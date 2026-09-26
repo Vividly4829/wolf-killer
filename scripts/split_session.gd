@@ -35,6 +35,7 @@ func launch(original: Node,count: int = 2,resume: bool = false) -> void:
 		viewport.size_2d_override=logical_size(index)
 		viewport.size_2d_override_stretch=true
 		viewport.scaling_3d_scale=1.0
+		viewport.msaa_3d=Viewport.MSAA_DISABLED if player_count>=3 else Viewport.MSAA_2X
 		viewport.own_world_3d=true
 		viewport.render_target_update_mode=SubViewport.UPDATE_ALWAYS
 		viewport.handle_input_locally=true
@@ -53,6 +54,9 @@ func launch(original: Node,count: int = 2,resume: bool = false) -> void:
 		if index==0: game.progress=profile
 		else: game.progress.save_path=secondary_save_path if index==1 else secondary_save_path.get_basename()+"_p%d.cfg"%(index+1)
 		viewport.add_child(game); games.append(game)
+		# Native pixels for every seat; reduce repeated shadow passes instead.
+		game.world.sun.directional_shadow_mode=DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+		game.world.sun.directional_shadow_max_distance=40.0
 		var menu_scale := float(logical_size(index).y)/720.0
 		game.hud.scale=Vector2.ONE*menu_scale; game.hud.position=Vector2((1280-1280*menu_scale)*.5,0)
 		var canvas:=CanvasLayer.new(); game.add_child(canvas)

@@ -30,6 +30,9 @@ func _ready() -> void:
 	_process(0)
 func register(zone: String,data: Dictionary) -> void:
 	parts[zone]=data
+	# Replica shots resolve on the host. Keep visual limb state, but avoid
+	# maintaining a second set of moving limb physics shapes per local seat.
+	if animal.game.coop.client(): return
 	var area:=Area3D.new(); area.collision_layer=2; area.collision_mask=0
 	area.set_meta("wolf",animal); area.set_meta("hit_zone",zone); animal.add_child(area)
 	var collision:=CollisionShape3D.new(); var capsule:=CapsuleShape3D.new()
@@ -56,13 +59,15 @@ func _process(_delta: float) -> void:
 			if data.has("skeleton"): data.skeleton.set_bone_pose_scale(data.bone,Vector3.ONE*.001)
 			else:
 				for node in data.nodes: node.hide()
-			areas[zone].collision_layer=0
+			if areas.has(zone): areas[zone].collision_layer=0
 			continue
+		if not areas.has(zone): continue
 		if animal.dead: areas[zone].collision_layer=0; continue
 		var endpoints:=points(data); var a: Vector3=endpoints[0]; var b: Vector3=endpoints[1]
 		var area: Area3D=areas[zone]; area.global_position=(a+b)*.5
 		var capsule: CapsuleShape3D=area.get_child(0).shape
-		capsule.height=maxf(capsule.radius*2,a.distance_to(b)+capsule.radius*2)
+		var height:=maxf(capsule.radius*2,a.distance_to(b)+capsule.radius*2)
+		if absf(capsule.height-height)>.003: capsule.height=height
 		if a.distance_to(b)>.001: area.global_basis=Basis(Quaternion(Vector3.UP,(b-a).normalized()))
 func speed_factor() -> float:
 	return maxf(.12,1.0-severed.size()*.34-float(injuries.size())*.04)

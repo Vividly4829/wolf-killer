@@ -39,12 +39,20 @@ var defensive_left:=0.0
 var defensive_cooldown:=0.0
 var defensive_hit:=0.0
 var defensive_target: Node3D
+var perception_at:=-1.0
+var separation_at:=-1.0
+var separation_cached:=Vector3.ZERO
+var shortcut_at:=-1.0
 func _ready() -> void:
 	add_to_group("wildlife")
 	escape_angle=randf_range(-PI,PI)
 	health = 650 if species=="moose" else (70 if species=="deer" else 18)
+	if species=="rabbit": health=45
+	if species=="wererabbit": health=320
 	max_health=health
 	reward = 70 if species=="moose" else (15 if species=="deer" else (7 if species=="goose" else 5))
+	if species=="wererabbit": reward=85
+	if species=="rabbit": reward=8
 	if species in ["deer","mink"]:
 		model = load("res://assets/wildlife/"+species+".glb").instantiate()
 		add_child(model)
@@ -77,6 +85,8 @@ func _ready() -> void:
 					if "leg" in skeleton.get_bone_name(bone) and ".002" in skeleton.get_bone_name(bone):
 						lowest=minf(lowest,to_local(skeleton.global_transform*skeleton.get_bone_global_pose(bone).origin).y)
 				if is_finite(lowest): model.position.y+=.085-lowest
+	elif species in ["rabbit","wererabbit"]:
+		model=Node3D.new(); add_child(model); build_rabbit()
 	elif species=="moose":
 		model=Node3D.new(); add_child(model); build_moose()
 	else:
@@ -103,9 +113,13 @@ func _ready() -> void:
 	var capsule := CapsuleShape3D.new()
 	capsule.radius = .55 if species=="moose" else (.30 if species=="deer" else .17)
 	capsule.height = 2.4 if species=="moose" else (1.4 if species=="deer" else .65)
+	if species in ["rabbit","wererabbit"]:
+		capsule.radius=.36 if species=="rabbit" else .79
+		capsule.height=1.05 if species=="rabbit" else 2.31
 	shape.shape = capsule
 	shape.rotation.x = PI/2
 	shape.position.y = 1.55 if species=="moose" else (.82 if species=="deer" else .24)
+	if species in ["rabbit","wererabbit"]: shape.position.y=.40 if species=="rabbit" else .88
 	hit.add_child(shape)
 	add_child(hit)
 	for organ in preload("res://scripts/wildlife_anatomy.gd").organs(species):
@@ -285,6 +299,8 @@ func abandon_route() -> void:
 	escape_angle=wrapf(escape_angle+1.1,-PI,PI)
 
 func separation() -> Vector3:
+	if phase<separation_at: return separation_cached
+	separation_at=phase+.15
 	var push:=Vector3.ZERO
 	for other in game.nodes_in_group("wildlife"):
 		if other==self or other.dead or other.aquatic or other.is_queued_for_deletion(): continue
@@ -293,9 +309,13 @@ func separation() -> Vector3:
 		if distance>=2: continue
 		if distance<.05: offset=Vector3.RIGHT.rotated(Vector3.UP,escape_angle); distance=.05
 		push+=offset.normalized()*(2-distance)/2
-	return push.limit_length(1.2)
+	separation_cached=push.limit_length(1.2)
+	return separation_cached
 
 func _physics_process(delta: float) -> void:
+	if not dead:
+		delta=preload("res://scripts/animal_simulation.gd").step(self,delta)
+		if delta<=0: return
 	if reaction and reaction.hold_incapacitated(): return
 	if dead or is_queued_for_deletion() or not game.is_playing(): return
 	var was_fleeing:=fear_left>0
@@ -313,16 +333,18 @@ func _physics_process(delta: float) -> void:
 		if dead: return
 	if game.get("guardians") and game.guardians.defend_against(self,delta): return
 	if defensive_deer(delta): return
-	var hunters: Array = [game.player]
-	if game.coop.active: hunters.append_array(game.coop.avatars.values())
-	for hunter in hunters:
-		if notices(hunter):
-			threat_memory = hunter.position
-			fear_left = maxf(fear_left,7)
-	for wolf in game.wolves:
-		if is_instance_valid(wolf) and not wolf.dead and position.distance_to(wolf.position)<22:
-			threat_memory = wolf.position
-			fear_left = maxf(fear_left,10)
+	if phase>=perception_at:
+		perception_at=phase+.15
+		var hunters: Array = [game.player]
+		if game.coop.active: hunters.append_array(game.coop.avatars.values())
+		for hunter in hunters:
+			if notices(hunter):
+				threat_memory = hunter.position
+				fear_left = maxf(fear_left,7)
+		for wolf in game.wolves:
+			if is_instance_valid(wolf) and not wolf.dead and position.distance_to(wolf.position)<22:
+				threat_memory = wolf.position
+				fear_left = maxf(fear_left,10)
 	var fleeing := fear_left>0
 	if fleeing and not was_fleeing:
 		route.clear(); search=null; timer=0
@@ -349,13 +371,14 @@ func _physics_process(delta: float) -> void:
 				search.start(game.world.wolf_nav,position,goal)
 
 	while not route.is_empty() and Vector2(route[0].x-position.x,route[0].z-position.z).length()<.045: route.remove_at(0)
-	for shortcut in 2:
+	for shortcut in (2 if phase>=shortcut_at else 0):
+		shortcut_at=phase+.2
 		if route.size()>1 and preload("res://scripts/animal_route.gd").corridor_clear(game.world.wolf_nav,position,route[1]): route.remove_at(0)
 		else: break
 	var destination: Vector3 = goal if aquatic else (route[0] if not route.is_empty() else position)
 	var direction := destination-position
 	direction.y = 0
-	var speed: float=((6.0 if species in ["deer","moose"] else 2.3) if fleeing else .65)*limbs.speed_factor()
+	var speed: float=((6.0 if species in ["deer","moose"] else 4.0 if species=="rabbit" else 2.3) if fleeing else .65)*limbs.speed_factor()
 	if not aquatic: speed *= game.world.wolf_nav.vegetation_factor(position)
 	if direction.length()>.025:
 		var remaining := direction.length()
@@ -397,6 +420,12 @@ func _physics_process(delta: float) -> void:
 	update_animation(velocity.length() if not aquatic else speed if direction.length()>.025 else 0.0)
 
 func update_animation(speed: float) -> void:
+	if species in ["rabbit","wererabbit"] and not dead and reaction.down<=0:
+		var stride:=sin(phase*13)*minf(1.0,speed*.35)
+		set_meta("hop_height",maxf(0,stride)*(.10 if species=="rabbit" else .22))
+		for part in model.get_children():
+			if part.has_meta("limb"): part.rotation.x=stride*.35
+
 	if species=="moose" and not dead and reaction.down<=0:
 		for leg in model.get_children():
 			if leg.has_meta("rest"):
@@ -477,3 +506,32 @@ func build_moose() -> void:
 		for i in 6:
 			var tine:=ellipsoid(Vector3(side*(.48+i*.13),2.6+i*.025,.85+(i%2)*.4),Vector3(.045,.21,.055),horn); tine.rotation.z=-side*.3
 	ellipsoid(Vector3(0,1.54,-1.08),Vector3(.11,.16,.13),coat)
+
+func build_rabbit() -> void:
+	var scale_factor:=2.2 if species=="wererabbit" else 1.0
+	var coat:=Color("3a292e") if species=="wererabbit" else Color("9a8974")
+	ellipsoid(Vector3(0,.40,0),Vector3(.36,.34,.51),coat)
+	ellipsoid(Vector3(0,.57,.43),Vector3(.23,.24,.25),coat)
+	ellipsoid(Vector3(0,.50,.65),Vector3(.14,.10,.10),Color("d2bda7"))
+	ellipsoid(Vector3(0,.54,.74),Vector3(.045,.035,.022),Color("473334"))
+	ellipsoid(Vector3(0,.38,-.51),Vector3(.15,.16,.15),Color("d2c7b3"))
+	for side in [-1,1]:
+		var ear:=ellipsoid(Vector3(side*.12,.96,.39),Vector3(.075,.35,.065),coat); ear.rotation.z=-side*.13; ear.set_meta("wounded_head",true)
+		ellipsoid(Vector3(side*.12,.98,.45),Vector3(.042,.26,.012),Color("995e62"))
+		ellipsoid(Vector3(side*.19,.64,.57),Vector3(.044,.048,.022),Color("f53022") if species=="wererabbit" else Color("160f0e")).set_meta("wounded_head",true)
+		for z in [-.29,.31]:
+			var leg:=ellipsoid(Vector3(side*.24,.12,z),Vector3(.14,.115,.22 if z<0 else .15),coat.darkened(.2))
+			leg.set_meta("limb",("front" if z>0 else "rear")+("_left_leg" if side<0 else "_right_leg"))
+		if species=="wererabbit":
+			# Low, slanted brows, a split jaw, exposed teeth and hooked foreclaws.
+			var brow:=ellipsoid(Vector3(side*.17,.70,.57),Vector3(.105,.035,.045),coat.darkened(.35)); brow.rotation.z=side*.35
+			ellipsoid(Vector3(side*.065,.41,.66),Vector3(.075,.07,.04),Color("250e13"))
+			for tooth in 3:
+				ellipsoid(Vector3(side*(.025+tooth*.031),.415,.70),Vector3(.014,.048 if tooth==2 else .03,.02),Color("d5c4a1"))
+			for claw in 3:
+				ellipsoid(Vector3(side*.24+(claw-1)*.055,.085,.47),Vector3(.018,.034,.10),Color("151013"))
+			for tuft in 4:
+				var fur:=ellipsoid(Vector3(side*(.29+tuft*.01),.55,-.12-tuft*.09),Vector3(.095,.07,.19),coat.lightened(.05)); fur.rotation.y=side*.65
+
+	for part in model.get_children():
+		part.position*=scale_factor; part.scale*=scale_factor

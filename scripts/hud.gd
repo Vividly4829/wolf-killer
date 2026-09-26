@@ -639,6 +639,7 @@ func _defeat() -> void:
 	_paid_revive_button(Vector2(450,592))
 
 func _process(_delta: float) -> void:
+	if game.split_session and game.mode=="playing": return
 	var revive_button=overlay.get_node_or_null("PaidRevive")
 	if revive_button: revive_button.disabled=game.progress.money<1000 or game.coop.paid_revive_pending
 	if game.mode=="connecting":
