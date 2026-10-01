@@ -3,14 +3,12 @@
   "version": "0.1.0",
   "platform": "Windows x86_64",
   "engine": "Godot 4.6.2 stable",
-  "source_commit": "93e5f5429eb81861208fac9a2b18f85a06b84195",
-  "built_utc": "2026-10-01T10:14:53.9719211Z",
+  "source_commit": "d40284db91e1f5f0e52bcd190aa4e1f240b9f231",
+  "built_utc": "2026-10-01T19:03:16.7404710Z",
   "archive": "WolfIsland-Windows-x64.zip",
-  "archive_bytes": 66630859,
-  "archive_sha256": "0d259376e354ae61e919ffbd7550ab9be271622850f705163dd9e23b1b1c3d9e",
+  "archive_bytes": 66630986,
+  "archive_sha256": "2a9e43fde0decd2209cee5665d2345d742751d3ccd5837e464de85a034ac916b",
   "executable": "WolfIsland.exe",
-  "executable_bytes": 139984992,
-  "executable_sha256": "aa81403f913ac2ebcb078561255f6159d3f07c3103492293c2c512c218c88e7e",
-  "source_dirty": true,
-  "local_changes": "Latest September changes plus October 1 compact HUD, replicated poses, grounded rescue markers, mounted jumping, aggressive were-rabbits, unlimited bandages, full store stats, slow slope climbing, range scoring and vampire finale."
+  "executable_bytes": 139985104,
+  "executable_sha256": "f2ba501a6e7b44a9a5fa4824d341cafea2e0aa1aefd8000b3509e85bad56755c"
 }
