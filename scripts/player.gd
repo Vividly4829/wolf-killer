@@ -423,6 +423,11 @@ func _physics_process(delta: float) -> void:
 		var lift: float = smoothstep(0.0, 0.14, reload_progress) * (1.0 - smoothstep(0.84, 1.0, reload_progress)) if _reload_time > 0 else 0.0
 		weapon.position = Vector3(lerpf(0.24, 0.035, _aim) - lift * 0.07, -0.29 - absf(bob) * 0.5 - lift * 0.15, -0.42 + _recoil * 0.13 - lift * 0.10)
 		weapon.rotation = Vector3(_recoil * 0.20 + lift * 0.90, lift * 0.09, -lift * 0.20)
+	# Move only the first-person presentation farther from the camera at hip fire.
+	# Fade out for calibrated iron sights and the existing reload animation.
+	var compact_weight: float = (1.0 - _aim) * (1.0 - reload_angle)
+	var split_lowering: float = 0.025 if is_instance_valid(game.split_session) else 0.0
+	weapon.position += Vector3(0.025, -0.02 - split_lowering, -0.18) * compact_weight
 	if is_sprinting:
 		weapon.position += Vector3(.08,-.12,.06)
 		weapon.rotation.x += .18
