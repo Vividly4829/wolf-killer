@@ -3,12 +3,14 @@
   "version": "0.1.0",
   "platform": "Windows x86_64",
   "engine": "Godot 4.6.2 stable",
-  "source_commit": "7e761164f14240d5498c2f285e6af735cc26cd0d",
-  "built_utc": "2026-09-26T12:42:14.8557213Z",
+  "source_commit": "93e5f5429eb81861208fac9a2b18f85a06b84195",
+  "built_utc": "2026-10-01T10:14:53.9719211Z",
   "archive": "WolfIsland-Windows-x64.zip",
-  "archive_bytes": 66599955,
-  "archive_sha256": "88cc971ad3c43ea6a8f2cfc1c7861b540d117c332fabe7d6ab10cf7b1b077a2e",
+  "archive_bytes": 66630859,
+  "archive_sha256": "0d259376e354ae61e919ffbd7550ab9be271622850f705163dd9e23b1b1c3d9e",
   "executable": "WolfIsland.exe",
-  "executable_bytes": 139953856,
-  "executable_sha256": "759a18c19d1fff6bbd80b0ee92711e17a6aaf53fc26d2fc5526cf91961ab1239"
+  "executable_bytes": 139984992,
+  "executable_sha256": "aa81403f913ac2ebcb078561255f6159d3f07c3103492293c2c512c218c88e7e",
+  "source_dirty": true,
+  "local_changes": "Latest September changes plus October 1 compact HUD, replicated poses, grounded rescue markers, mounted jumping, aggressive were-rabbits, unlimited bandages, full store stats, slow slope climbing, range scoring and vampire finale."
 }

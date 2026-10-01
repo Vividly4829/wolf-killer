@@ -64,6 +64,7 @@ var wave_countdown: float = 15.0
 var wave_total: int = 3
 var pending_spawns: int = 0
 var wave_kills: int = 0
+var kill_board: Control
 var run_kills: int = 0
 var survived: float = 0.0
 var nav_timer: float = 0.0
@@ -197,6 +198,7 @@ func _ready() -> void:
 	hud = HudScript.new()
 	hud.game = self
 	canvas.add_child(hud)
+	kill_board=preload("res://scripts/kill_board.gd").new(); kill_board.game=self; canvas.add_child(kill_board)
 	var blood_hud=preload("res://scripts/damage_overlay.gd").new()
 	blood_hud.game=self; canvas.add_child(blood_hud)
 	shot_review = preload("res://scripts/shot_review.gd").new()
@@ -275,7 +277,7 @@ func _process(delta: float) -> void:
 		bandage_left = maxf(0.0, bandage_left - delta)
 		if bandage_left == 0.0:
 			player.stop_bleeding()
-			bandages -= 1
+			# Field dressings are unlimited; application still takes time.
 			show_notice("Bleeding stopped. Other injuries need first aid or rest.", 4)
 	spotting_timer -= delta
 	if spotting_timer <= 0.0:
@@ -359,10 +361,14 @@ func start_from_menu() -> void:
 	start_run(false,true)
 
 func start_run(sandbox: bool = false, use_menu_settings: bool = false, resumed_level: int = 0) -> void:
+	if mode=="dead" and resumed_level==0:
+		progress.owned.assign([0]); progress.stowed.clear()
 	coop.reset_round_earnings()
 	combat_fx.shots.clear()
 	restore_campaign()
 	campaign.reset()
+	player.cabin_exited=false
+	kill_board.clear()
 	free_play = sandbox
 	if sandbox:
 		campaign_progress = progress
@@ -569,6 +575,7 @@ func _spawn_wildlife() -> void:
 	if level<=2: species_list = ["deer","deer","deer","deer","duck","goose","mink"]
 	if level==3: species_list = ["deer","deer","duck","duck","goose","goose","goose","mink"]
 	species_list.append_array(["rabbit","rabbit","rabbit"])
+	if not free_play and level>=6 and randf()<minf(.5,.12+level*.012): species_list.append("wererabbit")
 	var local_count := species_list.size()
 	# Additional wildlife across the connected map, independent of the quota.
 	species_list.append_array(["moose","moose","deer","deer","deer","deer","deer","deer","duck","duck","duck","goose","goose","mink","mink"])
@@ -580,7 +587,7 @@ func _spawn_wildlife() -> void:
 	var used: Array[Vector3] = []
 	for animal_index in species_list.size():
 		var species: String = species_list[animal_index]
-		var animal := preload("res://scripts/wildlife.gd").new()
+		var animal = preload("res://scripts/were_rabbit.gd").new() if species=="wererabbit" else preload("res://scripts/wildlife.gd").new()
 		animal.game = self
 		animal.species = species
 		var candidates = nearby if animal_index<local_count and level<=3 and not nearby.is_empty() else world.wolf_nav.reachable
@@ -613,12 +620,14 @@ func wolf_defeated(wolf: Node3D) -> void:
 	if free_play: return
 	campaign.animal_killed(wolf)
 	run_kills += 1
+	kill_board.killed(wolf,25)
 	coop.award(25)
 	sounds.play("coin", -21)
 	show_notice("+25 CREDITS  /  Alpha defeated" if wolf.is_alpha else "+25 CREDITS  /  Wolf defeated", 2.5 if wolf.is_alpha else 1.7)
 
 
 func begin_rest() -> void:
+	player.cabin_exited=false
 	coop.reset_round_earnings()
 	if not coop.client(): world.houses.reroll()
 	world.weather.wake(level)
@@ -731,6 +740,10 @@ func fire_weapon() -> void:
 	if not world.firing_allowed(player.position):
 		show_notice("Weapons down. Move at least 3 m away from the starting cabin.",2)
 		return
+	if current_weapon==25 and current_ammo()<=0:
+		if coop.client(): coop.send_to(1,"trigger_dynamite",[coop.generation])
+		else: coop.detonate_charges(1)
+		return
 	if not is_playing() or is_struggling() or bandage_left > 0 or fire_cooldown > 0 or reload_left > 0:
 		return
 	if current_ammo() <= 0:
@@ -795,8 +808,9 @@ func fire_ballistic(origin: Vector3,direction: Vector3,weapon: Dictionary,review
 		var endpoint: Vector3=result.path.points[-1]
 		var beam_start:=origin+Vector3(0,-.18,0)
 		if peer==1: beam_start=player.weapon.to_global(player.weapon.muzzle_position)
-		beam_effect(beam_start,endpoint)
-		if coop.active: coop.send_all("laser_effect",[beam_start,endpoint])
+		var beam_color:=Color(str(weapon.get("beam_color","ff0904")))
+		beam_effect(beam_start,endpoint,beam_color)
+		if coop.active: coop.send_all("laser_effect",[beam_start,endpoint,beam_color])
 	if not result.hit.is_empty(): resolve_weapon_hit(result.hit,result.direction,weapon,result.path.travelled,review_serial)
 
 func damage_at_distance(weapon: Dictionary, distance: float) -> float:
@@ -813,7 +827,8 @@ func resolve_weapon_hit(hit: Dictionary, direction: Vector3, weapon: Dictionary,
 		if not is_instance_valid(victim): return
 		var base := damage_at_distance(weapon,distance)
 		var target_pose: Transform3D=victim.global_transform
-		var report: Dictionary = preload("res://scripts/human_xray.gd").trace(victim.to_local(hit.position),(victim.global_basis.inverse()*direction).normalized(),base,float(weapon.get("penetration",.7))*clampf(base/float(weapon.damage),.35,1))
+		if victim.is_crouching: target_pose.basis=target_pose.basis.scaled_local(Vector3(1,.75,1))
+		var report: Dictionary = preload("res://scripts/human_xray.gd").trace(target_pose.affine_inverse()*hit.position,(target_pose.basis.inverse()*direction).normalized(),base,float(weapon.get("penetration",.7))*clampf(base/float(weapon.damage),.35,1))
 		var fatal_vital: bool = report.organs.has("brain") or report.organs.has("heart")
 		report.instant_fatal = fatal_vital
 		report.calculated_damage=preload("res://scripts/vital_damage.gd").resolve(report.organs,float(report.calculated_damage))
@@ -835,7 +850,11 @@ func resolve_weapon_hit(hit: Dictionary, direction: Vector3, weapon: Dictionary,
 	if is_instance_valid(target) and not target.dead:
 		var target_pose: Transform3D=target.reaction.anatomy_transform() if target.get("reaction") else target.global_transform
 		if target is IslandWolf: target_pose.basis=target_pose.basis.scaled_local(Vector3.ONE*target.size_scale)
+		kill_board.mark(target,str(weapon.name))
 		var report: Dictionary = target.receive_ballistic_hit(damage_at_distance(weapon, distance), hit.position, direction, hit_zone, float(weapon.limb_force),float(weapon.get("vital_bonus",1.0)),float(weapon.get("penetration",.7))*clampf(damage_at_distance(weapon,distance)/float(weapon.damage),.35,1))
+		if report.get("species","")=="target" and coop.active and not coop.client():
+			coop.send_all("range_feedback",[world.shooting_range.targets.find(target),damage_at_distance(weapon,distance),hit.position,direction])
+		target.set_meta("kill_organs",report.get("organs",[])+(["head"] if hit_zone=="head" else []))
 		report.target_uid=target.get_instance_id()
 		report.target_transform=target_pose
 		report.body_depth_m=report.entry.distance_to(report.end)*(float(target.size_scale) if target is IslandWolf else 1.0)
@@ -895,7 +914,7 @@ func reload_weapon() -> void:
 func _finish_reload() -> void:
 	if _reload_weapon_id != current_weapon or _reload_secondary != (current_weapon == 9 and lemat_secondary):
 		return
-	var amount := mini(int(weapon_spec().magazine) - current_ammo(), 5 if weapon_spec().get("laser",false) else current_reserve())
+	var amount := mini(int(weapon_spec().magazine) - current_ammo(), int(weapon_spec().magazine) if weapon_spec().get("laser",false) else current_reserve())
 	if _reload_secondary:
 		lemat_shot_ammo += amount
 		lemat_shot_reserve -= amount
@@ -1007,10 +1026,8 @@ func _apply_health_damage(amount: float, impact: bool = true) -> void:
 		bandage_left = 0.0
 		death_level = level
 		if not coop.active: level = 1
-		progress.stowed.clear()
-		progress.owned.clear()
-		progress.owned.append(0)
-		current_weapon = 0
+		# Keep equipment while downed, including paid revival.
+		# New runs reset equipment through start_run().
 		lemat_secondary = false
 		reload_left = 0
 		player.set_weapon(current_weapon)
@@ -1087,8 +1104,6 @@ func use_bandage() -> void:
 		return
 	if player.bleeding_rate <= 0.0:
 		show_notice("No bleeding to treat. First aid treats other injuries.", 3)
-	elif bandages <= 0:
-		show_notice("No bandages left. Visit the store for first aid.", 3)
 	else:
 		reload_left = 0.0
 		bandage_left = 2.4
@@ -1310,6 +1325,7 @@ func paid_revive() -> void:
 	finish_paid_revive(world.bed_wake_position)
 
 func finish_paid_revive(point: Vector3) -> void:
+	if player.cabin_exited and world.is_safe_position(point): point=world.exterior_rally_point
 	end_wolf_struggle(false)
 	player.clear_injuries(); player.reset_at(point)
 	health=10; bandage_left=0; reload_left=0; struggle_grace=3.0
@@ -1438,7 +1454,7 @@ func radar_color(animal: Node3D) -> Color:
 	if not free_play and animal.get("alerted")==true: return Color("ff4d4d")
 	return Color("ed9fc8")
 
-func beam_effect(a: Vector3,b: Vector3) -> void:
+func beam_effect(a: Vector3,b: Vector3,color: Color=Color(1,.035,.015)) -> void:
 	if a.distance_squared_to(b)<.0001: return
 	var effect:=Node3D.new(); effect.name="RedLaserBeam"; add_child(effect)
 	for layer in 2:
@@ -1451,8 +1467,8 @@ func beam_effect(a: Vector3,b: Vector3) -> void:
 		var material:=StandardMaterial3D.new()
 		material.shading_mode=BaseMaterial3D.SHADING_MODE_UNSHADED
 		material.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA
-		material.albedo_color=Color(1,.035,.015,1 if layer==0 else .22)
-		material.emission_enabled=true; material.emission=Color(1,.015,.005)
+		material.albedo_color=Color(color,1 if layer==0 else .22)
+		material.emission_enabled=true; material.emission=color
 		material.emission_energy_multiplier=2.5 if layer==0 else 1.0
 		beam.material_override=material; beam.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		effect.add_child(beam)
@@ -1466,4 +1482,4 @@ func start_split(count: int = 2, resume: bool = false) -> void:
 	session.launch.call_deferred(self,count,resume)
 
 func radar_dangerous(animal: Node3D) -> bool:
-	return animal is IslandWolf or str(animal.get("species")) in ["moose","bear","raider","legionary","musketeer","confederate","nazi","angel","devil"] or animal.get("alerted")==true
+	return animal is IslandWolf or str(animal.get("species")) in ["moose","bear","raider","legionary","musketeer","confederate","nazi","angel","devil","vampire"] or animal.get("alerted")==true

@@ -26,8 +26,8 @@ void fragment(){ vec3 c=textureLod(screen_texture,SCREEN_UV,blur).rgb; c=mix(c,c
 func infect() -> void:
 	if infected_wave>=0: return
 	infected_wave = game.level
-	game.player.supernatural_speed = 1.5
-	game.show_notice("LYCANTHROPY — faster, blurred red vision until the next werewolf round. Survive the next werewolf round to keep 200 HP.",8)
+	game.player.supernatural_speed = 1.35
+	game.show_notice("LYCANTHROPY — +35% movement speed, blurred red vision until the next werewolf round. Survive the next werewolf round to keep 200 HP.",8)
 func transformed() -> bool: return infected_wave >= 0
 func empowered() -> bool:
 	return infected_wave >= 0 and game.level > (floori(infected_wave / 5.0) + 1) * 5
@@ -45,7 +45,7 @@ func _process(_delta: float) -> void:
 		if voice_left<=0:
 			voice_left=randf_range(25,55)
 			game.sounds.play_at("growl" if randf()<.75 else "howl",game.player.position,-13,randf_range(.88,1.02))
-	game.player.supernatural_speed = 1.5 if transformed() else 1.0
+	game.player.supernatural_speed = 1.35 if transformed() else 1.0
 	overlay.visible = game.mode in ["playing","paused","shop"] and (psychedelic or transformed())
 	overlay.material.set_shader_parameter("blur",blur_amount())
 	overlay.material.set_shader_parameter("red",.4 if transformed() else 0.0)

@@ -32,22 +32,23 @@ func make_werewolf() -> void:
 	if werewolf: return
 	werewolf=true
 	model.hide()
-	model=preload("res://scripts/field_character.gd").new()
-	model.beast=true; model.scale=Vector3.ONE*1.45; model.rotation.y=PI
+	model=preload("res://scripts/night_beast.gd").new()
+	model.scale=Vector3.ONE*2.0
 	add_child(model)
-	size_scale=1.45
+	size_scale=2.0
 	max_health=maxf(420,max_health*3.5); health=max_health
 	bite_damage*=2.0; speed=4.8; charge_speed=11.5
 	_boldness=1.0; _aggression=1.0
 	for zone in _hit_zones:
+		if zone not in ["body","head"]: _hit_zones[zone].collision_layer=0
 		for child in _hit_zones[zone].get_children():
 			if not child is CollisionShape3D: continue
-			child.rotation=Vector3.ZERO
 			var shape:=CapsuleShape3D.new()
-			shape.radius=.32 if zone=="body" else .21 if zone=="head" else .12
-			shape.height=1.35 if zone=="body" else .44 if zone=="head" else .8
+			shape.radius=.62 if zone=="body" else .40 if zone=="head" else .18
+			shape.height=2.4 if zone=="body" else .9 if zone=="head" else 1.15
 			child.shape=shape
-			child.position=Vector3(0,1.55,0) if zone=="body" else Vector3(0,2.35,.1) if zone=="head" else Vector3(-.49 if "left" in zone else .49,1.45,0) if "front" in zone else Vector3(-.20 if "left" in zone else .20,.65,0)
+			child.rotation=Vector3(PI/2,0,0) if zone in ["body","head"] else Vector3.ZERO
+			child.position=Vector3(0,1.28,-.12) if zone=="body" else Vector3(0,1.75,1.35) if zone=="head" else Vector3(-.58 if "left" in zone else .58,.60,.68 if "front" in zone else -1.0)
 	limbs=preload("res://scripts/animal_limbs.gd").new(); limbs.animal=self; add_child(limbs)
 	_hurt_label.position.y=2.85
 	if not reaction:
@@ -283,9 +284,9 @@ func receive_ballistic_hit(amount: float, world_hit: Vector3, shot_direction: Ve
 	var penetration := penetration_m / size_scale
 	var report: Dictionary = preload("res://scripts/wolf_anatomy.gd").trace(entry, direction, penetration, hit_zone)
 	if werewolf:
-		report=preload("res://scripts/human_xray.gd").trace((reaction.anatomy_transform().affine_inverse()*world_hit)/1.45,direction,amount,penetration_m/1.45)
+		report=preload("res://scripts/wolf_anatomy.gd").trace(entry,direction,penetration,hit_zone)
 		report.species="werewolf"; report.bleed=4.0 if not report.organs.is_empty() else .5
-		report.zone="WEREWOLF / "+("HEAD" if entry.y>1.5 else "BODY")
+		report.zone="WEREWOLF / "+("HEAD" if entry.z>.45 else "BODY")
 	var before := health
 	if not report.organs.is_empty(): report.multiplier *= vital_bonus
 	if LEG_BONES.has(hit_zone) and not werewolf:

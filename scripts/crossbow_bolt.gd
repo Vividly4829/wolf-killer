@@ -8,6 +8,9 @@ var age: float = 0.0
 var review_serial: int = 0
 var shooter_peer := 1
 var landed := false
+var trigger_left := -1.0
+func trigger_detonation() -> void:
+	if spec.get("remote_detonation",false) and trigger_left<0: trigger_left=.3
 var flight := preload("res://scripts/shot_path.gd").new()
 var review_tick := 0.0
 var fuse_label: Label3D
@@ -74,7 +77,13 @@ func _physics_process(delta: float) -> void:
 	age += delta
 	if spec.get("explosive",false):
 		if is_instance_valid(fuse_label): fuse_label.text="%.1f s"%maxf(0,float(spec.fuse)-age)
-		if age>=float(spec.fuse): detonate(); return
+		if spec.get("remote_detonation",false):
+			if trigger_left>=0:
+				trigger_left-=delta
+				if is_instance_valid(fuse_label): fuse_label.text="%.1f s"%maxf(0,trigger_left)
+				if trigger_left<=0: detonate(); return
+			elif is_instance_valid(fuse_label): fuse_label.text="ARMED / CLICK TO DETONATE"
+		elif age>=float(spec.fuse): detonate(); return
 		if landed: return
 	var next := global_position + velocity * delta + Vector3.DOWN * 4.9 * delta * delta
 	velocity += Vector3.DOWN * 9.8 * delta
@@ -149,6 +158,7 @@ func detonate() -> void:
 		var before: float = animal.health
 		var previous_shooter: int=game.coop.shooter
 		game.coop.shooter=shooter_peer
+		game.kill_board.mark(animal,str(spec.name),shooter_peer)
 		if animal.is_in_group("campaign_threats"): animal.damage(amount,true)
 		else: animal.damage(amount)
 		game.coop.shooter=previous_shooter

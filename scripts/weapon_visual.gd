@@ -191,7 +191,7 @@ func animate_reload(progress: float, active: bool) -> void:
 			_set_string(1.0 if _loaded else .05)
 		_follow_dual_hands()
 		return
-	if _index==26: _set_rotation("crank",0,progress*TAU*16)
+	if _index in [26,37]: _set_rotation("crank",0,progress*TAU*16)
 	var p:=clampf(progress,0.0,1.0)
 	var open:=smoothstep(.02,.18,p)*(1.-smoothstep(.82,.98,p))
 	var work:=sin(p*TAU*6.)*.5+.5

@@ -7,7 +7,7 @@ var opened:=false
 var selected:=0
 var panel: Label
 func _ready() -> void:
-	points.append(game.world.spawn_position)
+	points.append(game.world.exterior_rally_point)
 	index_foliage()
 	var nav=game.world.nav
 	for direction in [Vector3.FORWARD,Vector3.RIGHT,Vector3.BACK,Vector3.LEFT]:

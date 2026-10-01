@@ -56,14 +56,14 @@ func reset_round() -> void:
 	if game.coop.active: game.coop.send_all("cat_state",[snapshot()])
 func add_cat(index: int,p: Vector3,hp: float) -> void:
 	var model:=Model.new(); model.variant=index; add_child(model); model.position=p
-	cats.append({"name":CAT_NAMES[index],"node":model,"p":p,"home":p,"yaw":0.0,"hp":hp,"max_hp":hp,"rider":0,"axis":Vector2.ZERO,"heading":0.0,"input_at":-1.0,"speed":0.0,"cooldown":0.0,"target":null,"think":0.0,"search":null,"route":PackedVector3Array(),"route_at":0.0,"swipe":0.0})
+	cats.append({"jump":0.0,"vertical":0.0,"name":CAT_NAMES[index],"node":model,"p":p,"home":p,"yaw":0.0,"hp":hp,"max_hp":hp,"rider":0,"axis":Vector2.ZERO,"heading":0.0,"input_at":-1.0,"speed":0.0,"cooldown":0.0,"target":null,"think":0.0,"search":null,"route":PackedVector3Array(),"route_at":0.0,"swipe":0.0})
 func hostile(enemy: Node3D) -> bool:
 	if not is_instance_valid(enemy) or enemy.is_queued_for_deletion() or enemy.get("dead")==true or game.free_play: return false
 	if enemy is IslandWolf: return true
 	var species: String=str(enemy.get("species"))
 	if species in ["deer","moose"]: return float(enemy.get("defensive_left"))>0
 	if species in ["bear","devil"]: return enemy.get("alerted")==true
-	return species in ["wererabbit","raider","legionary","musketeer","confederate","nazi","angel"]
+	return species in ["wererabbit","raider","legionary","musketeer","confederate","nazi","angel","vampire"]
 func candidates() -> Array:
 	return game.wolves+game.nodes_in_group("campaign_threats")+game.nodes_in_group("wildlife")
 func clear_sight(a: Vector3,b: Vector3) -> bool:
@@ -211,7 +211,7 @@ func _physics_process(delta: float) -> void:
 	elapsed+=delta
 	if game.coop.client():
 		for cat in cats:
-			cat.node.position=cat.node.position.lerp(cat.p,minf(1,delta*18)); cat.node.rotation.y=lerp_angle(cat.node.rotation.y,cat.yaw,minf(1,delta*18))
+			cat.node.position=cat.node.position.lerp(cat.p+Vector3.UP*float(cat.get("jump",0)),minf(1,delta*18)); cat.node.rotation.y=lerp_angle(cat.node.rotation.y,cat.yaw,minf(1,delta*18))
 		place_riders(); return
 	if not game.is_playing(): return
 	for cat in cats:
@@ -245,17 +245,22 @@ func _physics_process(delta: float) -> void:
 			if target and distance<=2.8 and absf(goal.y-cat.p.y)<2.8 and cat.cooldown<=0 and clear_sight(cat.p,goal):
 				cat.yaw=lerp_angle(cat.yaw,atan2(goal.x-cat.p.x,goal.z-cat.p.z),minf(1,delta*8))
 				swipe(cat,target)
-		cat.node.position=cat.p; cat.node.rotation.y=cat.yaw; cat.node.moving=cat.speed
+		cat.vertical-=18.0*delta
+		cat.jump=maxf(0,cat.jump+cat.vertical*delta)
+		if cat.jump<=0: cat.vertical=0.0
+		cat.node.airborne=cat.jump>.05
+		cat.node.position=cat.p+Vector3.UP*cat.jump; cat.node.rotation.y=cat.yaw; cat.node.moving=cat.speed
 	place_riders()
 func swipe(cat: Dictionary,target: Node3D) -> void:
 	if cat.cooldown>0: return
 	cat.cooldown=1.1; cat.swipe=.38; cat.node.attacking=.38
+	game.kill_board.mark(target,"GUARDIAN CAT",1)
 	if target is IslandWolf: target.damage(SWIPE_DAMAGE)
 	else: target.damage(SWIPE_DAMAGE,true)
 	game.gore.blood_burst(target.position+Vector3.UP,(target.position-cat.p).normalized(),.6)
 func snapshot() -> Array:
 	var result: Array=[]
-	for cat in cats: result.append({"p":cat.p,"home":cat.home,"yaw":cat.yaw,"hp":cat.hp,"max_hp":cat.max_hp,"rider":cat.rider,"speed":cat.speed,"swipe":cat.swipe})
+	for cat in cats: result.append({"jump":cat.jump,"p":cat.p,"home":cat.home,"yaw":cat.yaw,"hp":cat.hp,"max_hp":cat.max_hp,"rider":cat.rider,"speed":cat.speed,"swipe":cat.swipe})
 	return result
 func apply_snapshot(data: Array) -> void:
 	if not game.coop.client(): return
@@ -264,9 +269,21 @@ func apply_snapshot(data: Array) -> void:
 		clear()
 		for i in mini(2,data.size()): add_cat(i,data[i].p,data[i].max_hp)
 	for i in cats.size():
-		for key in ["p","home","yaw","hp","max_hp","rider","speed","swipe"]: cats[i][key]=data[i][key]
+		for key in ["jump","p","home","yaw","hp","max_hp","rider","speed","swipe"]: cats[i][key]=data[i][key]
+		cats[i].node.airborne=cats[i].jump>.05
 		cats[i].node.fallen=cats[i].hp<=0; cats[i].node.moving=cats[i].speed; cats[i].node.attacking=cats[i].swipe
 	var now_riding := occupied(local_id())
 	if was_riding<0 and now_riding>=0:
 		game.player.yaw=cats[now_riding].yaw+PI; game.player._update_rotation()
 	place_riders()
+
+func jump_local() -> void:
+	if game.coop.client(): game.coop.send_to(1,"cat_jump",[])
+	else: jump_rider(1)
+func jump_rider(peer: int) -> void:
+	if game.coop.client() or not game.is_playing(): return
+	var i:=occupied(peer)
+	if i<0: return
+	var actor:=hunter(peer)
+	if not is_instance_valid(actor) or (game.health<=0 if peer==1 else actor.health<=0): return
+	if cats[i].jump<.01: cats[i].vertical=6.4

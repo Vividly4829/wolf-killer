@@ -30,6 +30,7 @@ static func fire(game: Node3D,origin: Vector3,direction: Vector3,spec: Dictionar
 		var actual:=0.0
 		if hunter: actual=game.coop.friendly_hit(id,amount)
 		else:
+			game.kill_board.mark(victim,str(spec.name),peer)
 			if victim is IslandWolf: victim.damage(amount)
 			else: victim.damage(amount,true)
 			actual=before-victim.health

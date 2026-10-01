@@ -36,7 +36,7 @@ static func wave(number: int, hunters: int = 1) -> Dictionary:
 		["Claimed Ground", {}, {"bear":1}, 0,0, 0,0,4, ["pursuit"]],
 		["The Scattered Pack", {}, {"wolf":10}, 0,0, 10,0,0, ["fog"]],
 		["Last Provisions", {"deer":2,"goose":2}, {}, 0,0, 0,0,0, ["patrol","bear_claim","fever"]],
-		["Until Morning", {}, {"werewolf":3}, 0,0, 6,3,0, []]
+		["Until Morning", {}, {"wolf":15,"werewolf":5,"vampire":1}, 0,0, 15,5,0, []]
 	]
 	var row: Array = jobs[clampi(number,1,30)-1]
 	var job := {"number":number,"title":row[0],"hunt":row[1].duplicate(),"kill":row[2].duplicate(),"sites":row[3],"search":row[4],"wolves":row[5],"bosses":row[6],"raiders":row[7],"events":row[8].duplicate(),"moon":number%5==0}
@@ -48,7 +48,7 @@ static func wave(number: int, hunters: int = 1) -> Dictionary:
 	if number==7: job.title="Rabbit Stew"; job.hunt={"rabbit":3}
 	if number==13: job.hunt={"goose":1,"rabbit":2}
 	# Extra hunters add responsibilities, not extra hit points. Never change the intro.
-	if hunters>1 and number>3:
+	if hunters>1 and number>3 and number!=30:
 		for key in job.hunt: job.hunt[key] += hunters-1
 		if job.kill.has("wolf"): job.kill.wolf += hunters-1; job.wolves += hunters-1
 		elif int(job.wolves)>0: job.wolves += hunters-1

@@ -95,7 +95,15 @@ func load_shot(entry: Dictionary,restart: bool=false) -> void:
 		if near_path: targets[record.target_uid]=[record]
 	for hits in targets.values():
 		var report: Dictionary=hits[0]; var species: String=report.get("species","wolf")
-		var script: String="human_xray" if species in ["hunter","raider","werewolf","angel","devil"] else "wolf_xray" if species=="wolf" else "wildlife_xray"
+		if species=="target":
+			var board:=Node3D.new(); content.add_child(board); board.transform=report.target_transform; board.position-=origin
+			for ring in 5:
+				var disc:=MeshInstance3D.new(); var mesh:=CylinderMesh.new(); mesh.top_radius=.7-ring*.13; mesh.bottom_radius=mesh.top_radius; mesh.height=.02
+				disc.mesh=mesh; disc.rotation.x=PI/2; disc.position=Vector3(0,1.5,-.025-ring*.012); disc.material_override=mat(Color("55b9dc") if ring%2==0 else Color("254559")); board.add_child(disc)
+			for hit in hits:
+				var marker:=MeshInstance3D.new(); var sphere:=SphereMesh.new(); sphere.radius=.045; sphere.height=.09; marker.mesh=sphere; marker.position=hit.entry; marker.material_override=mat(Color("75ff83")); board.add_child(marker)
+			continue
+		var script: String="human_xray" if species in ["hunter","raider","angel","devil","vampire"] else "wolf_xray" if species in ["wolf","werewolf"] else "wildlife_xray"
 		var helper=load("res://scripts/"+script+".gd").new(); helper.visible=false; add_child(helper)
 		var typed_hits: Array[Dictionary]=[]; typed_hits.assign(hits); helper.review(typed_hits)
 		var body: Node3D=helper.scene; body.reparent(content)
@@ -131,7 +139,7 @@ func load_shot(entry: Dictionary,restart: bool=false) -> void:
 		var shell:=line_mesh(rings,mat(Color(1,.38,.12,.65))); shell.name="BlastRadius"
 
 	for report in entry.reports:
-		if not report.has("target_transform") or float(report.get("damage",0))<=0: continue
+		if report.get("species","")=="target" or not report.has("target_transform") or float(report.get("damage",0))<=0: continue
 		var impact: Vector3=report.target_transform*report.entry-origin
 		for i in 12:
 			var drop:=MeshInstance3D.new(); var sphere:=SphereMesh.new(); sphere.radius=.015; sphere.height=.03; sphere.radial_segments=6; sphere.rings=3

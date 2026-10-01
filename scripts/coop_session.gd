@@ -48,8 +48,16 @@ func _ready() -> void:
 var local_partners: Dictionary = {}
 var local_peer_id := 0
 var local_sender := 0
-func server() -> bool: return local_peer_id==1 if local_peer_id>0 else multiplayer.is_server()
-func peer_id() -> int: return local_peer_id if local_peer_id>0 else multiplayer.get_unique_id()
+func server() -> bool:
+	if local_peer_id>0: return local_peer_id==1
+	var peer:=multiplayer.multiplayer_peer
+	if peer and peer.get_connection_status()==MultiplayerPeer.CONNECTION_DISCONNECTED: return not active
+	return multiplayer.is_server()
+func peer_id() -> int:
+	if local_peer_id>0: return local_peer_id
+	var peer:=multiplayer.multiplayer_peer
+	if peer and peer.get_connection_status()==MultiplayerPeer.CONNECTION_DISCONNECTED: return 0 if active else 1
+	return multiplayer.get_unique_id()
 func sender_id() -> int: return local_sender if local_peer_id>0 else multiplayer.get_remote_sender_id()
 func client() -> bool: return active and not server()
 func send_to(id: int,method: String,args: Array = []) -> void:
@@ -207,8 +215,11 @@ func spawn_point(id: int) -> Vector3:
 func spawn_yaw(_id: int) -> float:
 	return game.world.bed_wake_yaw
 func wake_remote(id: int,recovery: bool) -> void:
-	if avatars.has(id): avatars[id].remove_meta("psychedelic")
+	if avatars.has(id):
+		avatars[id].remove_meta("psychedelic")
+		avatars[id].set_meta("cabin_exited",false)
 	send_to(id,"wake_player",[game.level,game.world.weather.season,game.world.weather.hour,game.world.weather.blood_moon,spawn_point(id),spawn_yaw(id),generation,recovery])
+	if game.kill_board: send_to(id,"ledger_state",[game.kill_board.rows,game.kill_board.revision])
 @rpc("authority","reliable")
 func wake_player(wave: int,season: int,hour: int,blood: bool,spawn: Vector3,yaw: float,epoch: int,recovery: bool = false) -> void:
 	awaiting_spawn=false
@@ -220,7 +231,9 @@ func wake_player(wave: int,season: int,hour: int,blood: bool,spawn: Vector3,yaw:
 	game.progress.resume_level=wave
 	game.progress.resume_players=game.split_session.player_count if is_instance_valid(game.split_session) else 1
 	game.affliction.psychedelic = false
+	game.player.cabin_exited=false
 	if not recovery:
+		game.kill_board.clear()
 		game.affliction.infected_wave = -1
 		game.rituals.clear()
 	game.health = game.maximum_health()
@@ -238,7 +251,9 @@ func wake_player(wave: int,season: int,hour: int,blood: bool,spawn: Vector3,yaw:
 	game.world.weather.blood_moon = blood
 	game.world.weather.apply()
 	if is_instance_valid(local_area): local_area.collision_layer = 2
+	game.player.cabin_exited=false
 	if not recovery:
+		game.kill_board.clear()
 		game.affliction.infected_wave = -1
 		game.set_mode("playing")
 
@@ -318,32 +333,35 @@ func _process(delta: float) -> void:
 		fail_connection("The host did not finish joining within 30 seconds. Ask for a fresh invite or check the LAN address and free slots (port %d)." % port)
 		return
 	if not active: return
-	if is_instance_valid(local_area): local_area.collision_layer = 2 if game.health>0 else 0
+	if is_instance_valid(local_area):
+		local_area.collision_layer = 2 if game.health>0 else 0
+		local_area.position.y=0.0
+		local_area.scale.y=.75 if game.player.is_crouching else 1.0
 	clock += delta
 	if clock-last_snapshot<.08: return
 	last_snapshot = clock
 	if client():
 		if not awaiting_spawn and (local_peer_id>0 or multiplayer.multiplayer_peer.get_connection_status()==MultiplayerPeer.CONNECTION_CONNECTED):
-			send_to(1,"pose",[game.player.position,game.player.yaw,game.player.is_crouching,game.player.get_noise_level(),game.health,game.current_weapon,game.player.is_sprinting,generation,revive_revision])
+			send_to(1,"pose",[game.player.position,game.player.yaw,game.player.is_crouching,game.player.get_noise_level(),game.health,game.current_weapon,game.player.is_sprinting,generation,revive_revision,game.player._jump_height])
 		return
 	check_team_wipe()
-	var hunters: Array = [{"id":1,"p":game.player.position,"yaw":game.player.yaw,"health":game.health,"weapon":game.current_weapon,"earned":round_earnings.get(1,0),"slot":1,"beast":game.affliction.transformed()}]
+	var hunters: Array = [{"id":1,"p":game.player.position,"yaw":game.player.yaw,"health":game.health,"weapon":game.current_weapon,"earned":round_earnings.get(1,0),"slot":1,"crouch":game.player.is_crouching,"jump":game.player._jump_height,"speed":game.player._actual_speed,"beast":game.affliction.transformed()}]
 	for id in avatars:
 		var avatar = avatars[id]
 		if avatar.mauling!=0:
 			var attacker=instance_from_id(avatar.mauling) if is_instance_id_valid(avatar.mauling) else null
 			if not is_instance_valid(attacker) or attacker.dead or avatar.health<=0 or game.world.is_safe_position(avatar.position): release_remote_maul(id)
-		hunters.append({"id":id,"p":avatar.position,"yaw":avatar.rotation.y,"health":avatar.health,"weapon":maxi(0,avatar.weapon_index),"earned":round_earnings.get(id,0),"slot":int(slots.get(id,1))+1,"beast":avatar.has_meta("infected_wave")})
+		hunters.append({"id":id,"p":avatar.position,"yaw":avatar.rotation.y,"health":avatar.health,"weapon":maxi(0,avatar.weapon_index),"earned":round_earnings.get(id,0),"slot":int(slots.get(id,1))+1,"crouch":avatar.is_crouching,"jump":avatar.jump_height,"speed":avatar._actual_speed,"beast":avatar.has_meta("infected_wave")})
 	var animals: Array = []
 	for wolf in game.wolves+game.nodes_in_group("wolf_corpses"):
 		animals.append({"id":wolf.get_instance_id(),"limbs":wolf.limbs.snapshot() if wolf.limbs else {},"p":wolf.position,"yaw":wolf.rotation.y,"health":wolf.health,"seed":int(wolf.profile.profile_seed),"boss":wolf.werewolf,"mission":wolf.get_meta("mission",false),"type":"wolf","move":wolf._velocity.length(),"max_health":wolf.max_health,"behavior":wolf.behavior,"injuries":wolf.leg_injuries,"severed":wolf.severed_legs,"side":wolf.reaction.side if wolf.reaction else 1.0,"alerted":wolf.alerted,"dead":wolf.dead,"down":wolf.reaction.down if wolf.reaction else 0.0,"flinch":wolf.reaction.flinch if wolf.reaction else 0.0})
 	for animal in game.nodes_in_group("wildlife"):
-		animals.append({"id":animal.get_instance_id(),"limbs":animal.limbs.snapshot(),"max_health":animal.max_health,"p":animal.position,"yaw":animal.rotation.y,"health":animal.health,"type":animal.species,"bleed":animal.bleeding_rate,"fear":animal.fear_left,"alerted":animal.alerted,"move":animal.velocity.length(),"aquatic":animal.aquatic,"dead":animal.dead,"down":animal.reaction.down,"flinch":animal.reaction.flinch,"side":animal.reaction.side})
+		animals.append({"id":animal.get_instance_id(),"limbs":animal.limbs.snapshot(),"max_health":animal.max_health,"p":animal.position,"yaw":animal.rotation.y,"health":animal.health,"appearance":animal.appearance_seed,"type":animal.species,"bleed":animal.bleeding_rate,"fear":animal.fear_left,"alerted":animal.alerted,"move":animal.velocity.length(),"aquatic":animal.aquatic,"dead":animal.dead,"down":animal.reaction.down,"flinch":animal.reaction.flinch,"side":animal.reaction.side})
 	for actor in game.nodes_in_group("campaign_threats"):
-		animals.append({"id":actor.get_instance_id(),"limbs":actor.limbs.snapshot() if actor.limbs else {},"p":actor.position,"yaw":actor.rotation.y,"health":actor.health,"max_health":actor.max_health,"type":actor.species,"weapon":actor.raider_weapon,"dead":actor.dead,"mission":actor.get_meta("mission",false),"down":actor.reaction.down,"flinch":actor.reaction.flinch,"side":actor.reaction.side,"move":2.8 if not actor.route.is_empty() else 0.0,"alerted":actor.alerted,"reload":actor.cooldown>1.0,"attack":actor.species=="legionary" and actor.cooldown>.85})
+		animals.append({"id":actor.get_instance_id(),"limbs":actor.limbs.snapshot() if actor.limbs else {},"p":actor.position,"yaw":actor.rotation.y,"health":actor.health,"max_health":actor.max_health,"appearance":actor.appearance_seed,"type":actor.species,"weapon":actor.raider_weapon,"dead":actor.dead,"mission":actor.get_meta("mission",false),"down":actor.reaction.down,"flinch":actor.reaction.flinch,"side":actor.reaction.side,"move":2.8 if not actor.route.is_empty() else 0.0,"alerted":actor.alerted,"reload":actor.cooldown>1.0,"attack":actor.species=="legionary" and actor.cooldown>.85})
 	var projectiles: Array = []
 	for bolt in game.nodes_in_group("player_bolts")+game.nodes_in_group("enemy_bolts"):
-		projectiles.append({"id":bolt.get_instance_id(),"p":bolt.position,"v":bolt.velocity,"type":bolt.spec.id,"fuse":maxf(0,float(bolt.spec.get("fuse",0))-float(bolt.get("age"))) if bolt.spec.get("explosive",false) and not bolt.spec.get("launcher",false) else -1.0})
+		projectiles.append({"id":bolt.get_instance_id(),"p":bolt.position,"v":bolt.velocity,"type":bolt.spec.id,"armed":bolt.spec.get("remote_detonation",false) and bolt.trigger_left<0,"fuse":bolt.trigger_left if bolt.spec.get("remote_detonation",false) and bolt.trigger_left>=0 else maxf(0,float(bolt.spec.get("fuse",0))-float(bolt.get("age"))) if bolt.spec.get("explosive",false) and not bolt.spec.get("launcher",false) else -1.0})
 	for id in connected_peers():
 		send_to(id,"state",[hunters,animals,game.level,game.mode,game.intermission,game.pending_spawns,game.wave_total,projectiles,game.world.houses.drops,game.wave_kills,generation,game.campaign.snapshot(),game.boats.snapshot(),game.guardians.snapshot()])
 	if game.level!=previous_wave and game.mode=="resting":
@@ -356,18 +374,25 @@ func _process(delta: float) -> void:
 		for id in avatars: wake_remote(id,true)
 		previous_wave = game.level
 @rpc("any_peer","unreliable_ordered")
-func pose(p: Vector3,yaw: float,crouch: bool,noise: float,hp: float,weapon: int,sprinting: bool = false,epoch: int = 0,life: int = 0) -> void:
+func pose(p: Vector3,yaw: float,crouch: bool,noise: float,hp: float,weapon: int,sprinting: bool = false,epoch: int = 0,life: int = 0,jump_height: float = 0.0) -> void:
 	if epoch!=generation: return
 	if not server() or not p.is_finite() or not is_finite(yaw) or not is_finite(hp): return
 	var id := sender_id()
 	if not avatars.has(id): return
 	var avatar = avatars[id]
 	if life!=int(avatar.get_meta("revive_revision",0)): return
+	if avatar.get_meta("cabin_exited",false) and Geometry2D.is_point_in_polygon(Vector2(p.x,p.z),game.world.cabin_outline):
+		send_to(id,"correct_position",[avatar.position]); return
+	if not game.world.is_safe_position(p): avatar.set_meta("cabin_exited",true)
 	var offset: Vector3 = p-avatar.position
 	var aboard: bool = game.boats.occupied(id)>=0 or game.guardians.occupied(id)>=0
 	if aboard: p=avatar.position; offset=Vector3.ZERO
 	if offset.length()>3.0: send_to(id,"correct_position",[avatar.position]); return
-	if not aboard: avatar.position = game.world.nav.move_position(avatar.position,offset.x,offset.z)
+	if not aboard and avatar.health>0:
+		var base: Vector3=avatar.position-Vector3.UP*avatar.jump_height
+		avatar.position = game.player.move_ground(base,offset.x,offset.z)
+		avatar.jump_height=clampf(jump_height,0,3.5) if is_finite(jump_height) else 0.0
+		avatar.position.y+=avatar.jump_height
 	avatar.rotation.y = yaw
 	avatar.equip(weapon)
 	avatar.set_meta("sprinting",sprinting)
@@ -409,7 +434,10 @@ func state(hunters: Array,animals: Array,wave: int,mode: String,waiting: bool,pe
 			avatar.peer_id = id
 			game.add_child(avatar)
 			avatars[id] = avatar
-		avatars[id].position = hunter.p
+		avatars[id].set_network_pose(hunter.p,hunter.yaw)
+		avatars[id].is_crouching=bool(hunter.get("crouch",false))
+		avatars[id].jump_height=float(hunter.get("jump",0))
+		avatars[id]._actual_speed=float(hunter.get("speed",0))
 		avatars[id].rotation.y = hunter.yaw
 		avatars[id].health = hunter.health
 		avatars[id].visible = true
@@ -428,7 +456,7 @@ func state(hunters: Array,animals: Array,wave: int,mode: String,waiting: bool,pe
 			if animal.type=="wolf":
 				node = preload("res://scripts/wolf.gd").new()
 				node.configure(game,game.world.wolf_nav,mini(wave,12),int(animal.seed))
-			elif animal.type in ["bear","raider","legionary","musketeer","confederate","nazi","angel","devil"]:
+			elif animal.type in ["bear","raider","legionary","musketeer","confederate","nazi","angel","devil","vampire"]:
 				node=preload("res://scripts/supernatural_actor.gd").new() if animal.type in ["angel","devil"] else preload("res://scripts/period_soldier.gd").new() if animal.type in ["confederate","nazi"] else preload("res://scripts/musketeer.gd").new() if animal.type=="musketeer" else preload("res://scripts/legionary.gd").new() if animal.type=="legionary" else preload("res://scripts/campaign_threat.gd").new()
 				node.game=game; node.species=animal.type
 				node.raider_weapon=int(animal.get("weapon",21))
@@ -436,6 +464,7 @@ func state(hunters: Array,animals: Array,wave: int,mode: String,waiting: bool,pe
 				node = preload("res://scripts/were_rabbit.gd").new() if animal.type=="wererabbit" else preload("res://scripts/wildlife.gd").new()
 				node.game = game
 				node.species = animal.type
+			if animal.type!="wolf": node.appearance_seed=int(animal.get("appearance",1))
 			game.add_child(node)
 			node.set_physics_process(false)
 			if animal.type=="wolf" and animal.boss: node.make_werewolf()
@@ -447,12 +476,12 @@ func state(hunters: Array,animals: Array,wave: int,mode: String,waiting: bool,pe
 			node.position = animal.p
 			node.rotation.y = animal.yaw
 		apply_animal_life(node,animal)
-		if animal.type in ["raider","legionary","musketeer","confederate","nazi"]:
+		if animal.type in ["raider","legionary","musketeer","confederate","nazi","vampire"]:
 			node.model.get_child(0).set_motion(float(animal.get("move",0)),false,animal.get("alerted",false),animal.get("attack",false))
 			node.model.get_child(0).set_process(not node.dead)
 		if animal.type=="musketeer": node.model.get_child(0).reloading=animal.get("reload",false)
 		if animal.type=="wolf" and node.werewolf: node.model.set_process(not node.dead)
-		if animal.type not in ["wolf","bear","raider","legionary","musketeer","confederate","nazi","angel","devil"]:
+		if animal.type not in ["wolf","bear","raider","legionary","musketeer","confederate","nazi","angel","devil","vampire"]:
 			node.aquatic = animal.get("aquatic",false)
 			if animal.get("bleed",0)>0 and not node.aquatic and clock-float(node.get_meta("last_trail",-10))>.55:
 				game.gore.blood_pool(node.position,.13)
@@ -491,11 +520,11 @@ func state(hunters: Array,animals: Array,wave: int,mode: String,waiting: bool,pe
 				visual.add_child(shaft)
 			bolt_replicas[id] = visual
 		bolt_replicas[id].position = projectile.p
-		if float(projectile.get("fuse",-1))>=0:
+		if float(projectile.get("fuse",-1))>=0 or projectile.get("armed",false):
 			var label=bolt_replicas[id].get_node_or_null("Fuse")
 			if not label:
 				label=Label3D.new(); label.name="Fuse"; label.position.y=.35; label.font_size=42; label.pixel_size=.006; label.billboard=BaseMaterial3D.BILLBOARD_ENABLED; label.modulate=Color("ffb25b"); bolt_replicas[id].add_child(label)
-			label.text="%.1f s"%float(projectile.fuse)
+			label.text="ARMED / CLICK TO DETONATE" if projectile.get("armed",false) else "%.1f s"%float(projectile.fuse)
 		if projectile.v.length_squared()>.001: bolt_replicas[id].look_at(projectile.p+projectile.v)
 	for id in bolt_replicas.keys():
 		if not seen.has(id): bolt_replicas[id].queue_free(); bolt_replicas.erase(id)
@@ -732,7 +761,7 @@ func explosion_effect(point: Vector3,radius: float) -> void:
 	if distance<radius*5: game.player._damage_kick=maxf(game.player._damage_kick,1-distance/(radius*5))
 	blast.get_tree().create_timer(3.0).timeout.connect(blast.queue_free)
 @rpc("authority","call_remote","unreliable")
-func laser_effect(a: Vector3,b: Vector3) -> void: game.beam_effect(a,b)
+func laser_effect(a: Vector3,b: Vector3,color: Color=Color(1,.035,.015)) -> void: game.beam_effect(a,b,color)
 
 @rpc("any_peer","reliable")
 func mission_interact() -> void:
@@ -1005,3 +1034,29 @@ func paid_revive_accepted(point: Vector3,epoch: int,revision: int) -> void:
 
 @rpc("authority","reliable")
 func beast_infection() -> void: game.affliction.infect()
+
+@rpc("any_peer","reliable")
+func trigger_dynamite(epoch: int) -> void:
+	if server() and epoch==generation and avatars.has(sender_id()) and avatars[sender_id()].health>0:
+		detonate_charges(sender_id())
+func detonate_charges(peer: int) -> void:
+	for charge in game.nodes_in_group("player_bolts"):
+		if charge.shooter_peer==peer and charge.spec.get("remote_detonation",false): charge.trigger_detonation()
+
+@rpc("authority","reliable")
+func kill_update(rows: Dictionary,event: Dictionary,revision: int) -> void:
+	game.kill_board.receive(rows,event,revision)
+
+@rpc("authority","reliable")
+func ledger_state(rows: Dictionary,revision: int) -> void:
+	if revision<game.kill_board.seen_revision: return
+	game.kill_board.rows=rows.duplicate(true); game.kill_board.seen_revision=revision; game.kill_board.queue_redraw()
+
+@rpc("any_peer","call_remote","reliable")
+func cat_jump() -> void:
+	if server(): game.guardians.jump_rider(sender_id())
+
+@rpc("authority","call_remote","reliable")
+func range_feedback(index: int,amount: float,point: Vector3,direction: Vector3) -> void:
+	var targets: Array=game.world.shooting_range.targets
+	if index>=0 and index<targets.size(): targets[index].receive_ballistic_hit(amount,point,direction,"target",0)

@@ -74,6 +74,10 @@ func configure(owner_game: Node, navigation: RefCounted) -> void:
 	set_weapon(0)
 	_update_rotation()
 
+var cabin_exited:=false
+func cabin_step_allowed(p: Vector3) -> bool:
+	return not cabin_exited or not Geometry2D.is_point_in_polygon(Vector2(p.x,p.z),game.world.cabin_outline)
+
 func reset_at(pos: Vector3) -> void:
 	position = pos
 	_jump_height = 0.0
@@ -294,10 +298,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				game.call("cycle_weapon", -1)
 			KEY_V:
 				game.call("toggle_fire_mode")
-			KEY_SPACE:
-				if _jump_height < 0.02 and not is_crouching and (bool(_weapon_spec().get("move_reload", true)) or float(game.get("reload_left")) <= 0.0):
-					_jump_velocity = 6.1 * (1.0 - leg_injury * 0.45) * sqrt(game.rituals.factor("jump"))
-					_emit_noise(0.85, 0.35)
+			KEY_SPACE: jump()
 	if event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
 			game.call("cycle_weapon", 1)
@@ -313,6 +314,8 @@ func _physics_process(delta: float) -> void:
 		_velocity=Vector2.ZERO; is_sprinting=false; return
 	if is_instance_valid(game) and controller_device < 0 and _fire_trigger_down and _weapon_spec().get("automatic",false): game.fire_weapon()
 	if controller_device>=0: poll_controller(delta)
+	if game.health<=0:
+		settle_downed(); return
 	if game.mode in ["shop","paused","waiting"]: return
 	if camera == null or not enabled or not is_instance_valid(game) or not game.call("is_playing"):
 		return
@@ -363,7 +366,7 @@ func _physics_process(delta: float) -> void:
 		else: game.boats.place_riders(game.coop.client())
 	else:
 		_velocity = Vector2.ZERO if movement_locked else _velocity.move_toward(Vector2(desired.x, desired.z), delta * 8.5 * (1.0 - leg_injury * 0.35))
-		var moved: Vector3 = nav.call("move_position", position, _velocity.x * delta, _velocity.y * delta)
+		var moved: Vector3 = move_ground(position-Vector3.UP*_jump_height, _velocity.x * delta, _velocity.y * delta)
 		_actual_speed = Vector2(moved.x - position.x, moved.z - position.z).length() / maxf(delta, 0.0001)
 		var previous_ground := position.y-_jump_height
 		var was_airborne := _jump_height > 0.02
@@ -377,7 +380,11 @@ func _physics_process(delta: float) -> void:
 				_emit_noise(0.7, 0.3)
 		ground_view_offset=clampf(ground_view_offset-(moved.y-previous_ground),-.25,.25)
 		ground_view_offset*=exp(-delta*16)
+		if not cabin_step_allowed(moved):
+			moved=Vector3(position.x,previous_ground,position.z)
+			_velocity=Vector2.ZERO
 		position = Vector3(moved.x, moved.y + _jump_height, moved.z)
+	if not game.world.is_safe_position(position): cabin_exited=true
 	_movement_noise = 0.025 if is_crouching else 0.035
 	if _actual_speed > 0.2:
 		_movement_noise = 0.14 if is_crouching else (0.95 if sprinting else 0.48)
@@ -443,6 +450,8 @@ func fight_held() -> bool:
 	return Input.is_physical_key_pressed(KEY_F) or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) if controller_device<0 else Input.get_joy_axis(controller_device,JOY_AXIS_TRIGGER_RIGHT)>.3
 func jump() -> void:
 	if game.mode!="playing" or _is_struggling(): return
+	if game.guardians.occupied(game.guardians.local_id())>=0:
+		game.guardians.jump_local(); return
 	if _jump_height<.02 and not is_crouching and (bool(_weapon_spec().get("move_reload",true)) or float(game.reload_left)<=0):
 		_jump_velocity=6.1*(1-leg_injury*.45)*sqrt(game.rituals.factor("jump")); _emit_noise(.85,.35)
 func controller_button(button: int) -> void:
@@ -482,6 +491,8 @@ func controller_button(button: int) -> void:
 			JOY_BUTTON_B,JOY_BUTTON_Y: game.close_shop()
 		return
 	if game.mode!="playing" or _is_struggling(): return
+	if game.guardians.occupied(game.guardians.local_id())>=0:
+		game.guardians.jump_local(); return
 	match button:
 		JOY_BUTTON_A: jump()
 		JOY_BUTTON_X: game.reload_weapon()
@@ -516,3 +527,33 @@ func stab_animation() -> void:
 	tween.tween_property(struggle_knife,"position",Vector3(.04,-.17,-.92),.15).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	tween.tween_property(struggle_knife,"position",Vector3(.28,-.32,-.2),.28)
 	tween.tween_callback(struggle_knife.hide)
+
+# Shared with host validation: climb only sampled terrain, never walls or water.
+func move_ground(origin: Vector3, dx: float, dz: float) -> Vector3:
+	var moved: Vector3=nav.move_position(origin,dx,dz)
+	var requested:=Vector2(dx,dz)
+	if requested.length()<.001: return moved
+	if Vector2(moved.x-origin.x,moved.z-origin.z).dot(requested.normalized())>requested.length()*.6:
+		if absf(moved.y-origin.y)>requested.length()*.7:
+			return nav.move_position(origin,dx*.28,dz*.28)
+		return moved
+	if nav.deck_at(origin.x,origin.z)>=0: return moved
+	var next:=origin+Vector3(dx,0,dz)*.28
+	if nav.deck_at(next.x,next.z)>=0: return moved
+	var cell: int=nav.at(next.x,next.z)
+	if not nav.valid(cell): return moved
+	var ground: float=nav.height_at(next.x,next.z)
+	if not is_finite(ground) or absf(ground-origin.y)>1.1: return moved
+	# Two torso-height rays prevent climbing through cabins, trunks and railings.
+	for height in [.65,1.4]:
+		var ray:=PhysicsRayQueryParameters3D.create(origin+Vector3.UP*height,Vector3(next.x,ground+height,next.z),1)
+		if not get_world_3d().direct_space_state.intersect_ray(ray).is_empty(): return moved
+	return Vector3(next.x,ground,next.z)
+
+func settle_downed() -> void:
+	_jump_height=0; _jump_velocity=0; _velocity=Vector2.ZERO
+	var ground: float=nav.height_at(position.x,position.z)
+	if is_finite(ground): position.y=ground
+	else:
+		var cell: int=nav.nearest(position.x,position.z,12)
+		position=nav.point(cell) if cell>=0 else game.world.exterior_rally_point

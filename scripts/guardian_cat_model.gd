@@ -101,12 +101,13 @@ void fragment(){
 	# Batch static details per animated joint; preserve the head, legs and tail.
 	preload("res://scripts/weapon_model_builder.gd").new()._merge_group(self)
 	for mesh in find_children("*","MeshInstance3D",true,false): mesh.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+var airborne:=false
 func _process(delta: float) -> void:
 	phase+=delta*(2.0+moving*1.5)
 	body.rotation.z=lerp_angle(body.rotation.z,1.4 if fallen else 0.0,delta*5)
 	body.position.y=lerpf(body.position.y,-.65 if fallen else sin(phase*2)*minf(.045,moving*.007),minf(1,delta*8))
 	if fallen: return
-	for i in legs.size(): legs[i].rotation.x=sin(phase+(0 if i in [0,3] else PI))*minf(.60,moving*.09)
+	for i in legs.size(): legs[i].rotation.x=(.6 if i%2 else -.45) if airborne else sin(phase+(0 if i in [0,3] else PI))*minf(.60,moving*.09)
 	tail.rotation.z=sin(phase*.35)*.12; head.rotation.y=sin(phase*.17)*.08
 	attacking=maxf(0,attacking-delta)
 	if attacking>0: legs[0].rotation.x=-1.1*sin(attacking*PI/.38)

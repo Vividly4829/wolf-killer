@@ -52,6 +52,7 @@ func _ready() -> void:
 	_create_wolf_navigation()
 	nav.extend_coast(exploration_data)
 	wolf_nav.extend_coast(exploration_data)
+	_rebuild_bridge_approaches()
 	nav.field(spawn_position.x,spawn_position.z)
 	wolf_nav.field(exterior_rally_point.x,exterior_rally_point.z)
 	_create_environment()
@@ -92,6 +93,7 @@ func _ready() -> void:
 	weather = preload("res://scripts/wake_weather.gd").new()
 	weather.world = self
 	add_child(weather)
+	_clear_bridge_fixtures()
 
 func _create_surroundings() -> void:
 	# Preserve the separate source asset; gameplay navigation lives in exploration.json.
@@ -125,7 +127,7 @@ func _add_coastal_collision(node: Node) -> void:
 			var center := Vector3(house.door[0],house.floor+1.15,house.door[2])
 			var portal := Transform3D(Basis(Vector3.UP,atan2(normal.x,normal.z)),center)
 			node.mesh = preload("res://scripts/cabin_portal.gd").cut(node.mesh,node.global_transform,portal,Vector3(1.6,1.2,.8))
-		node.create_trimesh_collision()
+		if node.mesh.get_surface_count()>0: node.create_trimesh_collision()
 		return
 	for child in node.get_children(): _add_coastal_collision(child)
 
@@ -140,6 +142,7 @@ func _prepare_surroundings(node: Node, terrain: ShaderMaterial, vegetation: Shad
 	if node is MeshInstance3D:
 		var label := str(node.name).to_lower()
 		node.mesh=preload("res://scripts/coastal_details.gd").refine_mesh(node.mesh,label,exploration_data.houses)
+		node.mesh=_clear_bridge_mesh(node.mesh,node.transform,label.begins_with("context_ground"))
 		var is_land := label.begins_with("context_ground") or label.begins_with("context_rock")
 		node.material_override = terrain if is_land else vegetation
 	for child in node.get_children():
@@ -254,7 +257,9 @@ func _surface_material(terrain: bool) -> ShaderMaterial:
 func _prepare_model(node: Node, terrain: ShaderMaterial, buildings: ShaderMaterial) -> void:
 	if node is MeshInstance3D:
 		var mesh_instance := node as MeshInstance3D
+		mesh_instance.mesh = _clear_bridge_mesh(mesh_instance.mesh,mesh_instance.global_transform,str(node.name).begins_with("ground"))
 		mesh_instance.mesh = preload("res://scripts/cabin_portal.gd").cut(mesh_instance.mesh,mesh_instance.global_transform)
+		if mesh_instance.mesh.get_surface_count()==0: return
 		var original := mesh_instance.get_active_material(0)
 		var is_glass := original is BaseMaterial3D and (original as BaseMaterial3D).transparency != BaseMaterial3D.TRANSPARENCY_DISABLED
 		if is_glass:
@@ -298,6 +303,7 @@ func _create_foliage() -> void:
 	rng.seed = 27613
 	for cluster: Dictionary in data.clusters:
 		var center := Vector3(float(cluster.center[0]), float(cluster.center[1]), float(cluster.center[2]))
+		if nav.deck_at(center.x,center.z)>=0: continue
 		var radii := Vector3(float(cluster.radii[0]), float(cluster.radii[1]), float(cluster.radii[2]))
 		var key := Vector2i(floori(center.x / 16), floori(center.z / 16))
 		if not tiles.has(key):
@@ -571,3 +577,88 @@ func firing_allowed(p: Vector3) -> bool:
 		var nearest:=Geometry2D.get_closest_point_to_segment(point,cabin_outline[i],cabin_outline[(i+1)%cabin_outline.size()])
 		if point.distance_to(nearest)<3.0: return false
 	return true
+
+func _rebuild_bridge_approaches() -> void:
+	var approaches:Array=[]
+	for route:Dictionary in exploration_data.bridges:
+		route.width=4.2
+		var a:=Vector3(route.a[0],route.a[1],route.a[2]); var b:=Vector3(route.b[0],route.b[1],route.b[2])
+		var forward:=Vector3(b.x-a.x,0,b.z-a.z).normalized()
+		for endpoint:int in 2:
+			var edge:=a if endpoint==0 else b
+			var connected:=false
+			for other:Dictionary in exploration_data.bridges:
+				if other==route: continue
+				for end:Array in [other.a,other.b]:
+					if edge.distance_to(Vector3(end[0],end[1],end[2]))<.75: connected=true
+			if connected: continue
+			var beyond:=edge+forward*(-3 if endpoint==0 else 3)
+			var index:=nav.nearest(beyond.x,beyond.z,4)
+			if index<0: continue
+			var landing:=nav.point(index)
+			var near_house:=false
+			for house:Dictionary in exploration_data.houses:
+				for vertex:Array in house.polygon:
+					if Vector2(landing.x-vertex[0],landing.z-vertex[1]).length()<3: near_house=true
+			if near_house: continue
+			if edge.distance_to(landing)<.8 or absf(edge.y-landing.y)>2: continue
+			approaches.append({"name":str(route.name)+" clear landing "+str(endpoint),"a":[edge.x,edge.y,edge.z],"b":[landing.x,landing.y,landing.z],"width":4.2})
+	for approach:Dictionary in approaches: exploration_data.bridges.append(approach)
+	for grid in [nav,wolf_nav]:
+		grid.crossings=exploration_data.bridges.duplicate()
+		for house:Dictionary in exploration_data.get("houses",[]): grid.crossings.append({"a":house.door,"b":house.end})
+		grid._build_deck_index()
+
+static var cleared_bridge_meshes:Dictionary={}
+func _clear_bridge_mesh(mesh: Mesh,transform: Transform3D,ground: bool=false) -> Mesh:
+	var key:=str(mesh.get_rid())+str(transform)+str(ground)
+	if cleared_bridge_meshes.has(key): return cleared_bridge_meshes[key]
+	var bounds: AABB=transform*mesh.get_aabb()
+	var corridors:Array=[]
+	for bridge:Dictionary in exploration_data.bridges:
+		var a:=Vector3(bridge.a[0],bridge.a[1],bridge.a[2]); var b:=Vector3(bridge.b[0],bridge.b[1],bridge.b[2])
+		var low:=a.min(b)-Vector3(3,0,3); var high:=a.max(b)+Vector3(3,5,3)
+		if not bounds.intersects(AABB(low,high-low)): continue
+		var forward:=(b-a).normalized(); var right:=forward.cross(Vector3.UP).normalized(); var up:=right.cross(forward).normalized()
+		corridors.append({"inverse":Transform3D(Basis(right,up,-forward),(a+b)*.5).affine_inverse(),"length":a.distance_to(b)*.5+1.5})
+	if corridors.is_empty(): return mesh
+	var output:=ArrayMesh.new()
+	for surface in mesh.get_surface_count():
+		var arrays:=mesh.surface_get_arrays(surface)
+		var vertices:PackedVector3Array=arrays[Mesh.ARRAY_VERTEX]
+		var indices:PackedInt32Array=arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX]!=null else PackedInt32Array()
+		if indices.is_empty():
+			for i in vertices.size(): indices.append(i)
+		var kept:=PackedInt32Array()
+		for i in range(0,indices.size(),3):
+			var a:Vector3=transform*vertices[indices[i]]; var b:Vector3=transform*vertices[indices[i+1]]; var c:Vector3=transform*vertices[indices[i+2]]
+			var center:Vector3=(a+b+c)/3.0; var blocked:=false
+			for corridor:Dictionary in corridors:
+				var q:Vector3=corridor.inverse*center
+				if q.y<(.035 if ground else -.3) or q.y>4.5 or absf(q.z)>corridor.length+1.0 or absf(q.x)>3.4: continue
+				blocked=true; break
+			if not blocked: kept.append_array(indices.slice(i,i+3))
+		if kept.is_empty(): continue
+		arrays[Mesh.ARRAY_INDEX]=kept; output.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,arrays)
+		output.surface_set_material(output.get_surface_count()-1,mesh.surface_get_material(surface))
+	if output.get_surface_count()==0:
+		# Empty placeholder retains a valid resource without collision geometry.
+		cleared_bridge_meshes[key]=output; return output
+	cleared_bridge_meshes[key]=output; return output
+
+func _clear_bridge_fixtures() -> void:
+	for body in find_children("*","StaticBody3D",true,false):
+		var visual:Node=body.get_parent()
+		if not visual is MeshInstance3D or not visual.mesh is BoxMesh: continue
+		var dimensions:Vector3=visual.mesh.size
+		if dimensions.length()>6: continue
+		var p:Vector3=visual.global_position
+		for route:Dictionary in exploration_data.bridges:
+			var a:=Vector3(route.a[0],route.a[1],route.a[2]); var b:=Vector3(route.b[0],route.b[1],route.b[2])
+			var nearest:=Geometry3D.get_closest_point_to_segment(p,a,b)
+			var flat:=Vector2(p.x-nearest.x,p.z-nearest.z)
+			if flat.length()>2.3+dimensions.length()*.5 or p.y+dimensions.y*.5<nearest.y+.1 or p.y-dimensions.y*.5>nearest.y+2.5: continue
+			var side:=(b-a).cross(Vector3.UP).normalized()
+			if side.dot(p-nearest)<0: side=-side
+			visual.global_position=nearest+side*(3.5+dimensions.length()*.5)+Vector3.UP*(p.y-nearest.y)
+			break

@@ -87,7 +87,7 @@ func shoot_pepperbox() -> void:
 	var cover:=PhysicsRayQueryParameters3D.create(position+Vector3.UP*1.4,origin,1)
 	if not get_world_3d().direct_space_state.intersect_ray(cover).is_empty(): return
 	var aim: Vector3=target.position+Vector3.UP
-	var spread:=maxf(.08,origin.distance_to(aim)*.037)
+	var spread:=maxf(.08,origin.distance_to(aim)*.08)
 	var direction: Vector3=(aim-origin+Vector3(randf_range(-spread,spread),randf_range(-spread,spread),randf_range(-spread,spread))).normalized()
 	var bolt=preload("res://scripts/raider_projectile.gd").new()
 	bolt.attacker=self; bolt.game=game; bolt.power=30; bolt.spec={"id":"enemy_pepperbox"}

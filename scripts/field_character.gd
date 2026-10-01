@@ -92,13 +92,14 @@ func _ready() -> void:
 	# Batch static detail within each joint; retain the articulated transforms.
 	preload("res://scripts/weapon_model_builder.gd").new()._merge_group(self)
 var seated := false
+var airborne := false
 func set_motion(speed: float,crouch: bool=false,aim: bool=false,attack: bool=false) -> void:
 	motion=speed; crouched=crouch; aiming=aim; attacking=attack
 func _process(delta: float) -> void:
 	if not is_instance_valid(torso): return
 	phase+=delta*(3+minf(motion,10)*2.2)
-	var activity:=clampf(motion/3,0,1)
-	torso.position.y=lerpf(torso.position.y,(.65 if crouched or seated else .84)+absf(sin(phase))*activity*.035,1-exp(-delta*12))
+	var activity:=0.0 if airborne else clampf(motion/3,0,1)
+	torso.position.y=lerpf(torso.position.y,(.46 if crouched else .65 if seated else .84)+absf(sin(phase))*activity*.035,1-exp(-delta*12))
 	torso.rotation.x=(.16+.15*activity if beast else .08*activity)+(.25 if crouched else 0)
 	joints.head.rotation.y=sin(phase*.22)*.045*(1-activity)
 	if not beast and costume=="ranger":
@@ -106,11 +107,14 @@ func _process(delta: float) -> void:
 	for side in [-1,1]:
 		var suffix:="L" if side<0 else "R"
 		var swing:=sin(phase+(0 if side<0 else PI))*activity
-		joints["hip"+suffix].rotation.x=1.05 if seated else swing*.62-(.25 if crouched else 0)
+		joints["hip"+suffix].rotation.x=1.05 if seated else swing*.3-1.05 if crouched else swing*.62
 		joints["hip"+suffix].rotation.z=side*.45 if seated else 0.0
-		joints["knee"+suffix].rotation.x=-1.1 if seated else maxf(0,-swing)*.85+(.50 if crouched else (.18 if beast else 0))
+		joints["knee"+suffix].rotation.x=-1.1 if seated else maxf(0,-swing)*.85+(1.5 if crouched else (.18 if beast else 0))
 		joints["shoulder"+suffix].rotation.x=-swing*.45 if not aiming else (.95 if side<0 else .70)
 		joints["elbow"+suffix].rotation.x=.18 if not aiming else (.45 if side<0 else .70)
+		if airborne and not seated:
+			joints["hip"+suffix].rotation.x=.4 if side<0 else -.2
+			joints["knee"+suffix].rotation.x=.8 if side<0 else .45
 		if attacking:
 			joints["shoulder"+suffix].rotation.x=1.4+sin(phase*1.8+side)*.65
 			joints["elbow"+suffix].rotation.x=.45

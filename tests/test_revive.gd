@@ -16,6 +16,7 @@ func run() -> void:
  var p:=Vector3(140,80,140)
  host.player.position=p; guest.player.position=p+Vector3(0,0,2)
  host.coop.avatars[2].position=guest.player.position; guest.coop.avatars[1].position=p
+ guest.progress.owned.assign([0,15,37]); guest.progress.stowed.assign([15]); guest.current_weapon=37
  guest.player.bleeding_rate=1; guest.player.leg_injury=.5
  guest._apply_health_damage(10000,false)
  check(guest.mode=="waiting" and host.coop.avatars[2].health==0,"guest down reaches host without ending live teammate run")
@@ -24,6 +25,7 @@ func run() -> void:
  host.interact_shop()
  check(guest.health==10 and guest.mode=="playing" and host.coop.avatars[2].health==10,"P1 revives P2 at 10 HP")
  check(guest.player.bleeding_rate==0 and guest.player.leg_injury==.5,"revival stops bleeding but preserves other injuries")
+ check(guest.progress.owned==[0,15,37] and guest.progress.stowed==[15] and guest.current_weapon==37,"revival preserves equipped, owned and stowed weapons")
  var rev: int=guest.coop.revive_revision
  host.coop.receive_local("report_down",[host.coop.generation,rev-1],2)
  host.coop.receive_local("pose",[guest.player.position,0.0,false,0.0,0.0,0,false,host.coop.generation,rev-1],2)

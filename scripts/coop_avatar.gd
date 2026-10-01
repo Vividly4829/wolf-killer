@@ -14,6 +14,7 @@ var weapon: Node3D
 var character: Node3D
 var previous_position:=Vector3.INF
 var rendered_speed:=0.0
+var jump_height:=0.0
 func equip(index: int) -> void:
 	if index==weapon_index or index<0 or index>=preload("res://scripts/weapon_catalog.gd").WEAPONS.size(): return
 	weapon_index = index
@@ -57,11 +58,29 @@ func _process(delta: float) -> void:
 	status_label.modulate=Color("ffbb77") if health<=0 else Color.WHITE
 	if is_instance_valid(weapon): weapon.visible=health>0
 	if not previous_position.is_finite(): previous_position=position
-	var moved:=position.distance_to(previous_position)/maxf(delta,.001)
+	var moved:=Vector2(position.x-previous_position.x,position.z-previous_position.z).length()/maxf(delta,.001)
 	rendered_speed=lerpf(rendered_speed,minf(10,moved),1-exp(-delta*8))
 	previous_position=position
 	character.seated=bool(get_meta("cat_riding",false))
-	character.set_motion(rendered_speed,is_crouching,true,mauling!=0)
+	character.airborne=jump_height>.06
+	character.set_motion(maxf(rendered_speed,_actual_speed) if health>0 else 0,is_crouching,true,mauling!=0)
+	if health<=0:
+		jump_height=0; _actual_speed=0
+		var game=get_parent()
+		if game.get("world"):
+			var ground: float=game.world.nav.height_at(position.x,position.z)
+			if is_finite(ground): position.y=ground
+			else:
+				var cell: int=game.world.nav.nearest(position.x,position.z,12)
+				position=game.world.nav.point(cell) if cell>=0 else game.world.exterior_rally_point
+	character.position.x=lerpf(character.position.x,0,1-exp(-delta*16))
+	character.position.z=lerpf(character.position.z,0,1-exp(-delta*16))
+	character.position.y=lerpf(character.position.y,.32 if health<=0 else 0.0,1-exp(-delta*12))
+	area.position.y=0.0
+	area.scale.y=.75 if is_crouching else 1.0
+	if is_instance_valid(weapon):
+		weapon.position.x=.16+character.position.x; weapon.position.z=-.27+character.position.z
+		weapon.position.y=lerpf(weapon.position.y,(.78 if is_crouching else 1.15)+character.position.y,1-exp(-delta*12))
 	character.set_process(health>0)
 	character.rotation.z=lerp_angle(character.rotation.z,1.4 if health<=0 else 0,1-exp(-delta*6))
 
@@ -70,3 +89,9 @@ func set_beast(value: bool) -> void:
 	character.queue_free()
 	character=preload("res://scripts/field_character.gd").new(); character.beast=value
 	add_child(character)
+
+func set_network_pose(point: Vector3,heading: float) -> void:
+	# Root stays authoritative for hits; smooth only the visible model.
+	var old:=character.global_position
+	position=point; rotation.y=heading
+	if old.distance_to(character.global_position)<4: character.global_position=old

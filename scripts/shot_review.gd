@@ -166,8 +166,8 @@ func _process(delta: float) -> void:
 	var shown: Array[Dictionary]=target_reports(displayed().reports)
 	var blast: bool=displayed().trajectories.any(func(path): return path.has("blast"))
 	wildlife.visible=not blast and not shown.is_empty() and str(shown.back().get("species","")) in ["deer","moose","duck","goose","mink","bear","rabbit","wererabbit"]
-	human.visible=not blast and not shown.is_empty() and str(shown.back().get("species","")) in ["hunter","raider","werewolf","angel","devil"]
-	xray.visible=not blast and not shown.is_empty() and str(shown.back().get("species","wolf"))=="wolf"
+	human.visible=not blast and not shown.is_empty() and str(shown.back().get("species","")) in ["hunter","raider","angel","devil","vampire"]
+	xray.visible=not blast and not shown.is_empty() and str(shown.back().get("species","wolf"))in ["wolf","werewolf"]
 	front_views[0].visible=xray.visible; front_views[1].visible=human.visible; front_views[2].visible=wildlife.visible
 func close_review() -> void:
 	dismissed=true
@@ -205,6 +205,13 @@ func _draw() -> void:
 	var target_review: bool = not hits.is_empty() and hits.back().get("species","")=="target"
 	label_at(24,("SHOT %03d / FLIGHT REVIEW" if hits.is_empty() else "SHOT %03d / RANGE REVIEW" if target_review else "SHOT %03d / BONE X-RAY") % int(shown.serial),Color("eac28b"),16)
 	label_at(45,str(shown.caption),Color("e9e5dd"),12)
+	if target_review:
+		var center:=Vector2(205,115)
+		for ring in 5: draw_circle(center,62-ring*12,Color("bd4149") if ring%2==0 else Color("d9e1db"))
+		for hit in hits:
+			var p: Vector3=hit.entry
+			var marker:=center+Vector2(p.x,-(p.y-1.5))*(62/.7)
+			draw_circle(marker,4,Color("75ff83")); draw_arc(marker,7,0,TAU,16,Color("171e24"),2)
 	if hits.is_empty():
 		if not blast: label_at(86,"No animal hit to inspect.")
 		label_at(286,"Damage: 0")
@@ -260,9 +267,9 @@ func _draw_trajectory(paths: Array[Dictionary],miss: bool) -> void:
 	var bones: Array[Vector2]=[]
 	var bone_lines: Array[PackedVector2Array]=[]
 	var hit_list: Array[Dictionary]=target_reports(displayed().reports)
-	if not hit_list.is_empty():
+	if not hit_list.is_empty() and hit_list[0].get("species","")!="target":
 		var hit: Dictionary=hit_list[0]
-		var helper: Control=human if hit.get("species","wolf") in ["hunter","raider","werewolf","angel","devil"] else xray if hit.get("species","wolf")=="wolf" else wildlife
+		var helper: Control=human if hit.get("species","wolf") in ["hunter","raider","angel","devil","vampire"] else xray if hit.get("species","wolf")in ["wolf","werewolf"] else wildlife
 		var pose: Transform3D=hit.get("target_transform",Transform3D.IDENTITY)
 		var start: Vector3=shot.points[0]
 		var direction: Vector3=shot.direction

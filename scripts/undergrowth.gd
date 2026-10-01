@@ -25,7 +25,7 @@ func _ready() -> void:
 		for bridge: Dictionary in world.exploration_data.bridges:
 			var a := Vector3(bridge.a[0],bridge.a[1],bridge.a[2])
 			var b := Vector3(bridge.b[0],bridge.b[1],bridge.b[2])
-			if Geometry3D.get_closest_point_to_segment(p,a,b).distance_to(p)<3: clear = false
+			if Geometry3D.get_closest_point_to_segment(p,a,b).distance_to(p)<5: clear = false
 		for house: Dictionary in world.exploration_data.get("houses",[]):
 			if Vector2(p.x-house.center[0],p.z-house.center[1]).length()<12: clear = false
 		if not clear: continue

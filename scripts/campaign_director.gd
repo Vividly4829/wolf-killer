@@ -89,7 +89,7 @@ func begin() -> void:
 				if pack_centers.all(func(p): return p.distance_to(center)>=40): break
 				center=random_point(35)
 		pack_centers.append(center)
-		if count>0 and game.level>10: count=maxi(count,Catalog.pack_size(game.level,rng))
+		if count>0 and game.level>10 and game.level!=30: count=maxi(count,Catalog.pack_size(game.level,rng))
 		spawn_pack(count,center,job.kill.has("wolf"))
 	for i in int(job.bosses):
 		spawn_wolf(random_point(45),true,true,100+i)
@@ -99,6 +99,7 @@ func begin() -> void:
 			bear.health=210; bear.wounded=true
 			var route=preload("res://scripts/animal_route.gd").plan(game.world.wolf_nav,site(0),bear.position)
 			for p in route: game.gore.blood_pool(p,.12)
+	for i in int(job.kill.get("vampire",0)): spawn_threat("vampire",random_point(65),true)
 	for i in int(job.raiders): spawn_threat("raider",site(0)+Vector3((i%3-1)*4,0,(i/3)*4),job.kill.has("raider"))
 	if game.level==21:
 		for animal in game.nodes_in_group("wildlife"):
@@ -109,7 +110,7 @@ func begin() -> void:
 	if int(job.wolves)==0 and rng.randf()<lerpf(.10,.45,(game.level-1)/29.0):
 		spawn_pack(Catalog.pack_size(game.level,rng),encounter_point(),false)
 	event="none"
-	if rng.randf()<Catalog.encounter_chance(game.level):
+	if game.level!=30 and rng.randf()<Catalog.encounter_chance(game.level):
 		var choices: Array=["wolves","wolves","patrol","bear"]
 		if game.level>=6: choices.append_array(["werewolf","wererabbit"])
 		if game.level>=20: choices.append_array(["confederates","nazis"])
@@ -353,7 +354,9 @@ func launch_event() -> void:
 		"bear","bear_claim":
 			var bear=spawn_threat("bear",event_origin,false)
 			bear.hear(game.player.position)
-			if game.level>=18 and rng.randf()<.35: spawn_threat("bear",event_origin+Vector3(5,0,3),false).hear(game.player.position)
+			if game.level>=18 and rng.randf()<.5:
+				for extra in (2 if game.level>=24 and rng.randf()<.5 else 1):
+					spawn_threat("bear",reachable(event_origin+Vector3(5+extra*4,0,3)),false).hear(game.player.position)
 		"fog","rain","wind":
 			weather_effect=event
 			if event=="wind": wind=Vector3(rng.randf_range(-1,1),0,rng.randf_range(-1,1))*2

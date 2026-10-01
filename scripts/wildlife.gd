@@ -1,4 +1,5 @@
 extends Node3D
+var appearance_seed: int = 0
 var game: Node
 var species := "deer"
 var health := 70.0
@@ -45,6 +46,10 @@ var separation_cached:=Vector3.ZERO
 var shortcut_at:=-1.0
 func _ready() -> void:
 	add_to_group("wildlife")
+	if appearance_seed==0: appearance_seed=randi_range(1,2147483646)
+	if species in ["bear","moose"]:
+		var visual_rng:=RandomNumberGenerator.new(); visual_rng.seed=appearance_seed
+		scale=Vector3.ONE*visual_rng.randf_range(.85,1.23)
 	escape_angle=randf_range(-PI,PI)
 	health = 650 if species=="moose" else (70 if species=="deer" else 18)
 	if species=="rabbit": health=45
@@ -156,6 +161,7 @@ func damage(amount: float,paid: bool = true) -> void:
 			if node is Area3D: node.set_deferred("collision_layer",0)
 		reaction.die()
 		if paid:
+			game.kill_board.killed(self,reward)
 			game.coop.award(reward)
 			game.progress.save_progress()
 			game.show_notice("+%d CR / %s" % [reward,species.to_upper()],2)
@@ -487,7 +493,7 @@ func provoke_moose() -> void:
 	route.clear(); search=null
 
 func build_moose() -> void:
-	var coat:=Color("514036"); var dark:=Color("302722"); var horn:=Color("b9a080")
+	var coat:Color=[Color("514036"),Color("75604a"),Color("3b302b"),Color("635548")][appearance_seed%4]; var dark:=coat.darkened(.35); var horn:=Color("b9a080")
 	ellipsoid(Vector3(0,1.55,0),Vector3(.55,.59,1.1),coat)
 	ellipsoid(Vector3(0,1.91,.48),Vector3(.43,.49,.57),dark)
 	ellipsoid(Vector3(0,1.78,.95),Vector3(.30,.46,.48),coat)
@@ -507,6 +513,14 @@ func build_moose() -> void:
 			var tine:=ellipsoid(Vector3(side*(.48+i*.13),2.6+i*.025,.85+(i%2)*.4),Vector3(.045,.21,.055),horn); tine.rotation.z=-side*.3
 	ellipsoid(Vector3(0,1.54,-1.08),Vector3(.11,.16,.13),coat)
 
+	# Long nostrils, split muzzle, inner ears and irregular palmate antler tines.
+	for side in [-1,1]:
+		ellipsoid(Vector3(side*.16,1.79,1.78),Vector3(.052,.030,.014),Color("160f0e"))
+		ellipsoid(Vector3(side*.40,2.13,1.16),Vector3(.17,.035,.09),coat.darkened(.45))
+		for tuft in 7:
+			ellipsoid(Vector3(side*.13,2.12-tuft*.022,.42-tuft*.115),Vector3(.065,.12,.09),dark)
+	ellipsoid(Vector3(0,1.55,1.67),Vector3(.19,.038,.20),dark)
+
 func build_rabbit() -> void:
 	var scale_factor:=2.2 if species=="wererabbit" else 1.0
 	var coat:=Color("3a292e") if species=="wererabbit" else Color("9a8974")
@@ -518,7 +532,10 @@ func build_rabbit() -> void:
 	for side in [-1,1]:
 		var ear:=ellipsoid(Vector3(side*.12,.96,.39),Vector3(.075,.35,.065),coat); ear.rotation.z=-side*.13; ear.set_meta("wounded_head",true)
 		ellipsoid(Vector3(side*.12,.98,.45),Vector3(.042,.26,.012),Color("995e62"))
-		ellipsoid(Vector3(side*.19,.64,.57),Vector3(.044,.048,.022),Color("f53022") if species=="wererabbit" else Color("160f0e")).set_meta("wounded_head",true)
+		var eye:=ellipsoid(Vector3(side*.19,.64,.57),Vector3(.044,.028 if species=="wererabbit" else .048,.022),Color("ff244a") if species=="wererabbit" else Color("160f0e"))
+		eye.set_meta("wounded_head",true)
+		if species=="wererabbit":
+			eye.material_override.emission_enabled=true; eye.material_override.emission=Color("ff244a"); eye.material_override.emission_energy_multiplier=2.5
 		for z in [-.29,.31]:
 			var leg:=ellipsoid(Vector3(side*.24,.12,z),Vector3(.14,.115,.22 if z<0 else .15),coat.darkened(.2))
 			leg.set_meta("limb",("front" if z>0 else "rear")+("_left_leg" if side<0 else "_right_leg"))

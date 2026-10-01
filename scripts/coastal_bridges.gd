@@ -1,11 +1,15 @@
 extends Node3D
+var routes:Array=[]
+var active_route:Dictionary={}
 var pieces: Array[Transform3D] = []
 ## Fictional gameplay crossings, separate from the surveyed as-is island asset.
 func build(data: Dictionary) -> void:
+	routes=data.bridges
 	var wood := StandardMaterial3D.new()
 	wood.albedo_color = Color("695449")
 	wood.roughness = .95
 	for route: Dictionary in data.bridges:
+		active_route=route
 		var a := Vector3(route.a[0],route.a[1],route.a[2])
 		var b := Vector3(route.b[0],route.b[1],route.b[2])
 		var forward := (b-a).normalized()
@@ -13,14 +17,24 @@ func build(data: Dictionary) -> void:
 		var up := right.cross(forward).normalized()
 		var basis := Basis(right,up,-forward)
 		var length := a.distance_to(b)
-		box(route.name+" deck",(a+b)*.5-up*.12,Vector3(3.4,.24,length+1.2),basis,wood)
+		box(route.name+" deck",(a+b)*.5-up*.12,Vector3(float(route.get("width",4.2)),.24,length+1.2),basis,wood)
 		for side in [-1,1]:
-			box("Handrail",(a+b)*.5+right*side*1.55+Vector3.UP,Vector3(.12,.13,length+1.2),basis,wood)
+			var sections:=ceili(length/.75)
+			var run_start:=-1
+			for section in range(sections+1):
+				var rail:Vector3=a.lerp(b,(section+.5)/sections)+right*side*(float(route.get("width",4.2))*.5-.08)+Vector3.UP
+				var clear:bool=section<sections and not junction(rail-Vector3.UP)
+				if clear and run_start<0: run_start=section
+				if not clear and run_start>=0:
+					var center:Vector3=a.lerp(b,(run_start+section)*.5/sections)+right*side*(float(route.get("width",4.2))*.5-.08)+Vector3.UP
+					box("Handrail",center,Vector3(.12,.13,(section-run_start)*length/sections+.04),basis,wood)
+					run_start=-1
 			for step in range(ceili(length/2.5)+1):
-				var p: Vector3 = a.lerp(b,minf(1.0,step*2.5/length))+right*side*1.55
+				var p: Vector3 = a.lerp(b,minf(1.0,step*2.5/length))+right*side*(float(route.get("width",4.2))*.5-.08)
+				if junction(p): continue
 				box("Timber post",p+Vector3.UP*.35,Vector3(.17,1.6,.17),Basis.IDENTITY,wood)
 		for step in range(ceili(length/.32)):
-			box("Deck board",a.lerp(b,minf(1.0,step*.32/length))+up*.008,Vector3(3.35,.025,.29),basis,wood,false)
+			box("Deck board",a.lerp(b,minf(1.0,step*.32/length))+up*.008,Vector3(float(route.get("width",4.2))-.05,.025,.29),basis,wood,false)
 		# Visible trestles beneath the added spans, batched with their decking.
 		if "footbridge" in route.name:
 			for step in range(1,ceili(length/6)):
@@ -51,3 +65,11 @@ func box(label: String,p: Vector3,dimensions: Vector3,orientation: Basis,materia
 		collider.shape = shape
 		body.add_child(collider)
 		add_child(body)
+
+func junction(p: Vector3) -> bool:
+	for route:Dictionary in routes:
+		if route==active_route: continue
+		var a:=Vector3(route.a[0],route.a[1],route.a[2]); var b:=Vector3(route.b[0],route.b[1],route.b[2])
+		var closest:=Geometry3D.get_closest_point_to_segment(p,a,b)
+		if absf(closest.y-p.y)<1.2 and Vector2(closest.x-p.x,closest.z-p.z).length()<float(route.get("width",4.2))*.5+.35: return true
+	return false

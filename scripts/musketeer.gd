@@ -32,7 +32,7 @@ func shoot() -> void:
 	if position.distance_to(target.position)<2.1: strike(target,20); cooldown=1.5; return
 	var origin:=musket.to_global(muzzle)
 	var aim: Vector3=target.position+Vector3.UP
-	var spread:=maxf(.12,origin.distance_to(aim)*.017)
+	var spread:=maxf(.12,origin.distance_to(aim)*.065)
 	var direction: Vector3=(aim-origin+Vector3(randf_range(-spread,spread),randf_range(-spread*.5,spread*.5),randf_range(-spread,spread))).normalized()
 	cooldown=7.5+randf_range(0,1.5)
 	var bolt=preload("res://scripts/raider_projectile.gd").new()

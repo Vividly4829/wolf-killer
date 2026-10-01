@@ -60,6 +60,7 @@ func build(weapon_index: int) -> Dictionary:
 		34: _hand_mortar()
 		35: _fire_siphon()
 		36: _volley_gun()
+		37: _laser_pistol()
 		_: _rifle()
 	if sight==Vector3.ZERO: sight = muzzle+Vector3(0,.035,0)
 	for key: String in actions:
@@ -935,3 +936,16 @@ func _volley_gun() -> void:
 	powder.visible=false
 	_sights(root,-.90,.163,-.105)
 	muzzle=volley_muzzles()[0]
+
+func _laser_pistol() -> void:
+	var saved:=index
+	index=4; _flintlock(); index=saved
+	action="crank"
+	for i in 14: _ring(root,Vector3(0,.025,-.16-i*.012),.034,.003,"copper")
+	for z in [-.14,-.34]: _ring(root,Vector3(0,.025,z),.040,.007,"brass")
+	var glass:=StandardMaterial3D.new(); glass.albedo_color=Color("39ff58"); glass.emission_enabled=true; glass.emission=Color("39ff58"); glass.emission_energy_multiplier=2.0
+	materials["emerald"]=glass
+	for side in [-1,1]: _cylinder(root,Vector3(side*.046,.025,-.24),.18,.012,"emerald",Vector3.FORWARD)
+	var crank:=_node("crank",Vector3(.07,.035,-.07))
+	_rod(crank,Vector3.ZERO,Vector3(0,.065,0),.008,"brass")
+	_cylinder(crank,Vector3(.022,.065,0),.045,.014,"wood",Vector3.RIGHT)

@@ -21,7 +21,7 @@ func species_name() -> String:
 	return "werewolf" if animal is IslandWolf and animal.werewolf else "wolf" if animal is IslandWolf else str(animal.get("species"))
 func pain_voice() -> void:
 	var species:=species_name()
-	var sound:= "wolf_hurt" if species in ["wolf","werewolf"] else "bear_growl" if species=="bear" else "gun_pain_1" if species in ["raider","legionary","musketeer","confederate","nazi","angel","devil"] else species+"_hurt"
+	var sound:= "wolf_hurt" if species in ["wolf","werewolf"] else "bear_growl" if species=="bear" else "gun_pain_1" if species in ["raider","legionary","musketeer","confederate","nazi","angel","devil","vampire"] else species+"_hurt"
 	animal.game.sounds.play_at(sound,animal.position,-7,randf_range(.92,1.08))
 	if animal.game.coop.active and not animal.game.coop.client(): animal.game.coop.broadcast_voice(sound,animal.position,-7,1.0)
 func show_health() -> void:
@@ -91,7 +91,7 @@ func _process(delta: float) -> void:
 	if not animal.model.transform.is_equal_approx(visual_pose): animal.model.transform=visual_pose
 	# Body collision and organ coordinates share exactly the visible fall pose.
 	for child in animal.get_children():
-		if child is Area3D and child.get_meta("hit_zone","")=="body":
+		if child is Area3D and child.get_meta("hit_zone","") in ["body","head"]:
 			if not areas.has(child): areas[child]=child.transform
 			var body_pose:Transform3D=pose*areas[child]
 			if not child.transform.is_equal_approx(body_pose): child.transform=body_pose

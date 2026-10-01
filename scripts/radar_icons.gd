@@ -2,12 +2,17 @@ extends RefCounted
 
 static func icon(canvas: Control,animal: Node3D,p: Vector2,c: Color) -> void:
 	var species: String = "werewolf" if animal.get("werewolf") == true else ("wolf" if animal is IslandWolf else str(animal.get("species")))
+	species_icon(canvas,species,p,c)
+static func species_icon(canvas: Control,species: String,p: Vector2,c: Color) -> void:
 	canvas.draw_circle(p,8,Color(.025,.045,.06,.85))
 	if species in ["duck","goose"]:
 		ellipse(canvas,p+Vector2(-1,2),Vector2(5,3),c)
 		var head := p+Vector2(4,-5 if species == "goose" else -2)
 		canvas.draw_line(p+Vector2(3,2),head,c,2); canvas.draw_circle(head,2,c); canvas.draw_line(head,head+Vector2(4,0),c,2)
-	elif species == "deer":
+	elif species in ["rabbit","wererabbit"]:
+		canvas.draw_circle(p+Vector2(0,2),4,c)
+		for side in [-1,1]: ellipse(canvas,p+Vector2(side*2,-4),Vector2(1.5,4),c)
+	elif species in ["deer","moose"]:
 		canvas.draw_circle(p+Vector2(0,2),3,c)
 		for side in [-1,1]:
 			canvas.draw_line(p,p+Vector2(side*5,-6),c,1.5)

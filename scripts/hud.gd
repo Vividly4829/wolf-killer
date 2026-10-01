@@ -53,6 +53,7 @@ const WeaponPreview = preload("res://scripts/weapon_visual.gd")
 var weapon_controls: Label
 var movement_controls: Label
 var campaign_title: Label
+var tactical: Control
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -118,6 +119,7 @@ func _ready() -> void:
 	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(overlay)
+	tactical=preload("res://scripts/tactical_hud.gd").new(); tactical.game=game; tactical.visible=not is_instance_valid(game.split_session); add_child(tactical)
 	refresh_panel()
 	for child in gameplay.get_children():
 		if child is Control: compact_layout[child] = {"position":child.position,"scale":child.scale}
@@ -231,7 +233,7 @@ func refresh_panel() -> void:
 	_shop_rows.clear()
 	_shop_filter_buttons.clear()
 	_shop_stat_labels.clear()
-	gameplay.visible = game.mode == "playing"
+	gameplay.visible = false
 	overlay.visible = game.mode != "playing"
 	if game.mode == "menu":
 		_menu()
@@ -246,7 +248,7 @@ func refresh_panel() -> void:
 	elif game.mode == "waiting":
 		_block(overlay,Rect2(320,220,640,260),Color(.03,.04,.06,.85))
 		_label(overlay,"WAITING FOR YOUR TEAM",Vector2(370,250),30)
-		_label(overlay,"A teammate can revive you nearby with E / Y (10 HP).\nOr finish the objective to respawn at the cabin next round.\nMoney is kept; lost weapons can be replaced.",Vector2(370,310),18,PAPER)
+		_label(overlay,"A teammate can revive you nearby with E / Y (10 HP).\nOr finish the objective to respawn at the cabin next round.\nMoney and weapons are kept when revived.",Vector2(370,310),18,PAPER)
 		_button(overlay,"LEAVE SESSION",Rect2(460,410,360,45),game.return_to_menu)
 		_paid_revive_button(Vector2(460,492))
 	elif game.mode == "victory":
@@ -370,11 +372,11 @@ func _shop() -> void:
 	description.size = Vector2(813, 46)
 	description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_shop_labels.description = description
-	var stat_names := ["CAPACITY", "DAMAGE", "RELOAD", "CARRIED AMMO"]
-	for i in 4:
-		_label(overlay, stat_names[i], Vector2(410 + i * 203, 501), 10, MUTED)
-		_shop_stat_labels.append(_label(overlay, "", Vector2(410 + i * 203, 521), 17, PAPER))
-	_shop_labels.ammo_note = _label(overlay, "", Vector2(410, 550), 10, MUTED)
+	var stat_names := ["CAPACITY / CARRIED", "DAMAGE", "RELOAD", "ACCURACY ±°", "RANGE EFF / MAX", "FIRE INTERVAL", "PENETRATION", "MUZZLE / BLAST"]
+	for i in 8:
+		_label(overlay, stat_names[i], Vector2(410 + (i%4) * 203, 490+floori(i/4.0)*32), 10, MUTED)
+		_shop_stat_labels.append(_label(overlay, "", Vector2(410 + (i%4) * 203, 502+floori(i/4.0)*32), 13, PAPER))
+	_shop_labels.ammo_note = _label(overlay, "", Vector2(410, 557), 9, MUTED)
 	var purchase := _button(overlay, "", Rect2(409, 573, 362, 47), _purchase_selected_weapon, true)
 	purchase.name = "PurchaseSelected"
 	_shop_buttons.purchase = purchase
@@ -444,7 +446,7 @@ func _refresh_shop_details() -> void:
 		var row: Button = _shop_rows[index]
 		row.text = "%02d  %s\n%s  ·  %s" % [index + 1, item.name, item.get("year", ""), ownership]
 		_set_shop_emphasis(row, index == shop_selection)
-	var selected_header := "%s  /  %s" % [data.get("year", ""), str(data.get("tag", _weapon_category(data))).to_upper()]
+	var selected_header := "%s  /  %s  /  %d CR" % [data.get("year", ""), str(data.get("tag", _weapon_category(data))).to_upper(),data.price]
 	if game.progress.owned.has(shop_selection) and not game.progress.stowed.has(shop_selection):
 		var slot: int = game.progress.owned.find(shop_selection)
 		selected_header += "  /  LB/RB TO SWITCH" if game.controller_device>=0 else ("  /  QUICK KEY %d" % (slot + 1) if slot < 9 else "  /  CYCLE WITH Q OR WHEEL")
@@ -457,12 +459,14 @@ func _refresh_shop_details() -> void:
 	var carried := "%d + %d reserve" % [game.ammo[shop_selection], _reserve_count(shop_selection)]
 	if not game.progress.owned.has(shop_selection):
 		carried = "%d reserve on purchase" % int(data.get("reserve", data.get("reserve_max", 0)))
-	var stat_values := [str(data.magazine), damage_text, "%.1f seconds" % float(data.reload), carried]
+	var stat_values := ["%d / %d reserve"%[data.magazine,_reserve_count(shop_selection) if game.progress.owned.has(shop_selection) else data.reserve], damage_text, "%.2f s" % float(data.reload), "%.2f° / %s"%[data.accuracy_degrees,data.barrel], "%.0f / %.0f m"%[data.effective_range,data.range] if not data.get("laser",false) else "Unlimited / no drop", "%.2f s"%data.interval, "%.2f m tissue"%data.penetration, "%.0f m blast"%data.blast_radius if data.get("explosive",false) else "Instant beam" if data.get("laser",false) else "%.0f m/s"%float(data.projectile_speed if data.projectile_speed>0 else data.get("bullet_speed",220))]
 	if shop_selection == 9:
 		stat_values[0] = "9 + 1 shot barrel"
-	for i in 4:
+	for i in 8:
 		_shop_stat_labels[i].text = stat_values[i]
 	var ammo_note := "%s  ·  %d CR PER RESERVE ROUND" % [data.get("ammo_type", "AMMUNITION"), int(data.get("ammo_cost", 3))]
+	if data.get("laser",false): ammo_note="UNLIMITED ENERGY / CRANK TO RECHARGE"
+	elif shop_selection in [24,25]: ammo_note="ONE CHARGE / REPLENISHED EACH ROUND"
 	if shop_selection == 9:
 		ammo_note += "  /  SHOT BARREL: %d + %d RESERVE  ·  %.1fs RELOAD  ·  4 CR" % [int(game.lemat_shot_ammo), int(game.lemat_shot_reserve),float(game.WeaponCatalog.secondary_weapon().reload)]
 	_shop_labels.ammo_note.text = ammo_note
@@ -737,6 +741,7 @@ func _process(_delta: float) -> void:
 	queue_redraw()
 
 func _draw() -> void:
+	return # Gameplay is rendered by the shared compact HUD.
 	if not game or game.mode != "playing":
 		return
 	# Dark transparent backing keeps white text clear against sea and sky.
